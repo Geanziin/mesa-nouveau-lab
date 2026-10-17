@@ -263,6 +263,9 @@ pipe_loader_get_compatible_render_capable_device_fds(int kms_only_fd, unsigned i
 bool
 pipe_loader_drm_probe_fd(struct pipe_loader_device **dev, int fd, bool zink);
 
+bool
+pipe_loader_drm_probe_fd_video(struct pipe_loader_device **dev, int fd);
+
 /**
  * Get the dri options used for the DRM driver of the given name, if any.
  *

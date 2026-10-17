@@ -923,3 +923,9 @@ option(
   value : true,
   description : 'Build panfrost disassemblers. Explicitly setting this option to false will cause the panfrost stack to build without disassemblers. This should be left enabled for distro builds.'
 )
+option(
+  'nouveau-nvenc',
+  type : 'boolean',
+  value : false,
+  description : 'Build the GA107 NVENC H.264 encoder (NVIDIA-DERIVED, local use only).'
+)

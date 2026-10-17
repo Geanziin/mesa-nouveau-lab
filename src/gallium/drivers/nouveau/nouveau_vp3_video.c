@@ -31,6 +31,10 @@
 #include "nouveau_screen.h"
 #include "nouveau_context.h"
 #include "nouveau_vp3_video.h"
+#include "nouveau_nvenc.h"
+#ifdef HAVE_NOUVEAU_VK_VIDEO
+#include "nouveau_vk_video.h"
+#endif
 
 #include "util/u_video.h"
 #include "util/format/u_format.h"
@@ -99,7 +103,7 @@ nouveau_vp3_video_buffer_create(struct pipe_context *pipe,
    struct pipe_sampler_view sv_templ;
    struct pipe_surface surf_templ;
 
-   if (templat->buffer_format != PIPE_FORMAT_NV12)
+   if (templat->buffer_format != PIPE_FORMAT_NV12 || !templat->interlaced)
       return vl_video_buffer_create(pipe, templat);
 
    assert(templat->interlaced);
@@ -438,8 +442,15 @@ int
 nouveau_vp3_screen_get_video_param(struct pipe_screen *pscreen,
                                    enum pipe_video_profile profile,
                                    enum pipe_video_entrypoint entrypoint,
-                                   enum pipe_video_cap param)
+                                    enum pipe_video_cap param)
 {
+   if (entrypoint == PIPE_VIDEO_ENTRYPOINT_ENCODE)
+      return nouveau_nvenc_param(nouveau_screen(pscreen), profile, param);
+#ifdef HAVE_NOUVEAU_VK_VIDEO
+   if (profile != PIPE_VIDEO_PROFILE_UNKNOWN &&
+       nouveau_vk_video_enabled(nouveau_screen(pscreen)))
+      return nouveau_vk_video_get_param(nouveau_screen(pscreen), profile, entrypoint, param);
+#endif
    const int chipset = nouveau_screen(pscreen)->device->chipset;
    /* Feature Set B = vp3, C = vp4, D = vp5 */
    const bool vp3 = chipset < 0xa3 || chipset == 0xaa || chipset == 0xac;
@@ -488,7 +499,7 @@ nouveau_vp3_screen_get_video_param(struct pipe_screen *pscreen,
          return 0;
       }
    case PIPE_VIDEO_CAP_SUPPORTS_PROGRESSIVE:
-      return false;
+       return chipset == 0x177 && profile == PIPE_VIDEO_PROFILE_UNKNOWN;
    case PIPE_VIDEO_CAP_MAX_MACROBLOCKS:
       switch (codec) {
       case PIPE_VIDEO_FORMAT_MPEG12:

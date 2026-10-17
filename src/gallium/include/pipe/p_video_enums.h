@@ -258,6 +258,8 @@ enum pipe_video_cap
     * picture can be read directly.
     */
    PIPE_VIDEO_CAP_ENC_READABLE_RECONSTRUCTED_PICTURE = 69,
+   PIPE_VIDEO_CAP_ENC_RATE_CONTROL_MODES = 70,
+   PIPE_VIDEO_CAP_ENC_DRIVER_GENERATED_HEADERS = 71,
 };
 
 enum pipe_video_h264_enc_dbk_filter_mode_flags

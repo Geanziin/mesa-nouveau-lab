@@ -116,7 +116,8 @@ get_nctx_caps(int fd, struct virgl_renderer_capset_drm *caps)
 }
 
 static bool
-pipe_loader_drm_probe_fd_nodup(struct pipe_loader_device **dev, int fd, bool zink)
+pipe_loader_drm_probe_fd_nodup(struct pipe_loader_device **dev, int fd, bool zink,
+                             bool video)
 {
    struct pipe_loader_drm_device *ddev = CALLOC_STRUCT(pipe_loader_drm_device);
    int vendor_id, chip_id;
@@ -140,6 +141,17 @@ pipe_loader_drm_probe_fd_nodup(struct pipe_loader_device **dev, int fd, bool zin
       ddev->base.driver_name = loader_get_driver_for_fd(fd);
    if (!ddev->base.driver_name)
       goto fail;
+
+   const char *override = os_get_option("MESA_LOADER_DRIVER_OVERRIDE");
+   if (video && !zink && (!override || !override[0]) &&
+       ddev->base.type == PIPE_LOADER_DEVICE_PCI &&
+       ddev->base.u.pci.vendor_id == 0x10de && ddev->base.u.pci.chip_id == 0x2584 &&
+       !strcmp(ddev->base.driver_name, "zink")) {
+      FREE(ddev->base.driver_name);
+      ddev->base.driver_name = strdup("nouveau");
+      if (!ddev->base.driver_name)
+         goto fail;
+   }
 
    /* For the closed source AMD OpenGL driver, we want libgbm to load
     * "amdgpu_dri.so", but we want Gallium multimedia drivers to load
@@ -203,10 +215,22 @@ pipe_loader_drm_probe_fd(struct pipe_loader_device **dev, int fd, bool zink)
    if (fd < 0 || (new_fd = os_dupfd_cloexec(fd)) < 0)
      return false;
 
-   ret = pipe_loader_drm_probe_fd_nodup(dev, new_fd, zink);
+    ret = pipe_loader_drm_probe_fd_nodup(dev, new_fd, zink, false);
    if (!ret)
       close(new_fd);
 
+    return ret;
+}
+
+bool
+pipe_loader_drm_probe_fd_video(struct pipe_loader_device **dev, int fd)
+{
+   int new_fd = fd >= 0 ? os_dupfd_cloexec(fd) : -1;
+   if (new_fd < 0)
+      return false;
+   bool ret = pipe_loader_drm_probe_fd_nodup(dev, new_fd, false, true);
+   if (!ret)
+      close(new_fd);
    return ret;
 }
 
@@ -232,7 +256,7 @@ pipe_loader_drm_probe_internal(struct pipe_loader_device **devs, int ndev, bool 
       if (fd < 0)
          continue;
 
-      if (!pipe_loader_drm_probe_fd_nodup(&dev, fd, zink)) {
+       if (!pipe_loader_drm_probe_fd_nodup(&dev, fd, zink, false)) {
          close(fd);
          continue;
       }

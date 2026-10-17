@@ -115,6 +115,8 @@ gm107_create_texture_view(struct pipe_context *pipe,
    tic[0] |= swz[3] << GM107_TIC2_0_W_SOURCE__SHIFT;
 
    address = mt->base.address;
+   if (texture->target != PIPE_BUFFER)
+      address += mt->level[0].offset;
 
    tic[3]  = GM107_TIC2_3_LOD_ANISO_QUALITY_2;
    tic[4]  = GM107_TIC2_4_BORDER_SIZE_SAMPLER_COLOR;
@@ -330,6 +332,8 @@ gf100_create_texture_view(struct pipe_context *pipe,
             ((fmt->tic.format & 0x40) << (GK20A_TIC_0_USE_COMPONENT_SIZES_EXTENDED__SHIFT - 6));
 
    address = mt->base.address;
+   if (texture->target != PIPE_BUFFER)
+      address += mt->level[0].offset;
 
    tic[2] = 0x00001000 | G80_TIC_2_BORDER_SOURCE_COLOR;
 

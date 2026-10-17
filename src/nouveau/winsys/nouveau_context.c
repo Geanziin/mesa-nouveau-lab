@@ -147,7 +147,7 @@ nouveau_ws_3d_context_init(struct nouveau_ws_device *dev,
 
    ret = nouveau_ws_context_query_classes(dev->fd, req.channel, classes);
    if (ret)
-      return ret;
+      goto fail_channel;
 
    base = (uint32_t)(0xbeef + req.channel) << 16;
 
@@ -203,6 +203,7 @@ fail_subchan:
    nouveau_ws_subchan_dealloc(dev->fd, &ctx->copy);
    nouveau_ws_subchan_dealloc(dev->fd, &ctx->m2mf);
    nouveau_ws_subchan_dealloc(dev->fd, &ctx->eng2d);
+fail_channel:
    nouveau_ws_channel_dealloc(dev->fd, req.channel);
 
    return ret;
@@ -215,12 +216,17 @@ nouveau_ws_video_context_init(struct nouveau_ws_device *dev,
 {
    uint32_t classes[NOUVEAU_WS_CONTEXT_MAX_CLASSES];
 
-   assert(!(engines & ~(NOUVEAU_WS_ENGINE_VDEC |
-                        NOUVEAU_WS_ENGINE_COPY)));
+   const enum nouveau_ws_engines video = engines & (NOUVEAU_WS_ENGINE_VDEC |
+                                                   NOUVEAU_WS_ENGINE_VENC);
+   if ((engines & ~(NOUVEAU_WS_ENGINE_VDEC | NOUVEAU_WS_ENGINE_VENC |
+                    NOUVEAU_WS_ENGINE_COPY)) ||
+       (video != NOUVEAU_WS_ENGINE_VDEC && video != NOUVEAU_WS_ENGINE_VENC))
+      return -EINVAL;
 
    struct drm_nouveau_channel_alloc req = {
       .fb_ctxdma_handle = ~0,
-      .tt_ctxdma_handle = NOUVEAU_FIFO_ENGINE_NVDEC,
+      .tt_ctxdma_handle = video == NOUVEAU_WS_ENGINE_VENC ?
+                         NOUVEAU_FIFO_ENGINE_NVENC : NOUVEAU_FIFO_ENGINE_NVDEC,
    };
    int ret = drmCommandWriteRead(dev->fd, DRM_NOUVEAU_CHANNEL_ALLOC, &req, sizeof(req));
    if (ret)
@@ -228,9 +234,9 @@ nouveau_ws_video_context_init(struct nouveau_ws_device *dev,
 
    ret = nouveau_ws_context_query_classes(dev->fd, req.channel, classes);
    if (ret)
-      return ret;
+      goto fail_channel;
 
-   const uint32_t base = (0xbeef + req.channel) << 16;
+   const uint32_t base = (uint32_t)(0xbeef + req.channel) << 16;
 
    if (engines & NOUVEAU_WS_ENGINE_COPY) {
       uint32_t obj_class = nouveau_ws_context_find_class(classes, 0xb5);
@@ -245,6 +251,14 @@ nouveau_ws_video_context_init(struct nouveau_ws_device *dev,
       ret = nouveau_ws_subchan_alloc(dev->fd, req.channel, base | 0x00b0,
                                      obj_class, &ctx->vdec);
       if (ret)
+          goto fail_subchan;
+   }
+
+   if (engines & NOUVEAU_WS_ENGINE_VENC) {
+      uint32_t obj_class = nouveau_ws_context_find_class(classes, 0xb7);
+      ret = nouveau_ws_subchan_alloc(dev->fd, req.channel, base | 0x00b7,
+                                     obj_class, &ctx->venc);
+      if (ret)
          goto fail_subchan;
    }
 
@@ -253,7 +267,10 @@ nouveau_ws_video_context_init(struct nouveau_ws_device *dev,
    return 0;
 
 fail_subchan:
+   nouveau_ws_subchan_dealloc(dev->fd, &ctx->venc);
    nouveau_ws_subchan_dealloc(dev->fd, &ctx->vdec);
+   nouveau_ws_subchan_dealloc(dev->fd, &ctx->copy);
+fail_channel:
    nouveau_ws_channel_dealloc(dev->fd, req.channel);
 
    return ret;
@@ -271,7 +288,7 @@ nouveau_ws_context_create(struct nouveau_ws_device *dev,
    ctx->dev = dev;
 
    int ret;
-   if (engines & NOUVEAU_WS_ENGINE_VDEC) {
+   if (engines & (NOUVEAU_WS_ENGINE_VDEC | NOUVEAU_WS_ENGINE_VENC)) {
       ret = nouveau_ws_video_context_init(dev, ctx, engines);
    } else {
       ret = nouveau_ws_3d_context_init(dev, ctx, engines);
@@ -296,6 +313,7 @@ nouveau_ws_context_destroy(struct nouveau_ws_context *context)
    nouveau_ws_subchan_dealloc(context->dev->fd, &context->m2mf);
    nouveau_ws_subchan_dealloc(context->dev->fd, &context->eng2d);
    nouveau_ws_subchan_dealloc(context->dev->fd, &context->vdec);
+   nouveau_ws_subchan_dealloc(context->dev->fd, &context->venc);
    nouveau_ws_channel_dealloc(context->dev->fd, context->channel);
    FREE(context);
 }

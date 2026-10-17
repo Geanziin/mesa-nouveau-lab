@@ -124,6 +124,20 @@ nvk_get_image_plane_format_features(const struct nvk_physical_device *pdev,
    return features;
 }
 
+static bool
+nvk_video_image_layout_supported(const struct nvk_physical_device *pdev,
+                                 VkFormat format, VkImageTiling tiling,
+                                 uint64_t modifier)
+{
+   if (format != VK_FORMAT_G8_B8R8_2PLANE_420_UNORM)
+      return false;
+   if (tiling == VK_IMAGE_TILING_OPTIMAL)
+      return true;
+   return pdev->info.device_id == 0x2584 &&
+          tiling == VK_IMAGE_TILING_DRM_FORMAT_MODIFIER_EXT &&
+          modifier == DRM_FORMAT_MOD_NVIDIA_BLOCK_LINEAR_2D(0, 1, 2, 0x06, 1);
+}
+
 VkFormatFeatureFlags2
 nvk_get_image_format_features(const struct nvk_physical_device *pdev,
                               VkFormat vk_format, VkImageTiling tiling,
@@ -187,7 +201,7 @@ nvk_get_image_format_features(const struct nvk_physical_device *pdev,
 
    /* At least advertise support for NV12. This is incomplete. */
    const struct nvk_instance *instance = nvk_physical_device_instance(pdev);
-   if (vk_format == VK_FORMAT_G8_B8R8_2PLANE_420_UNORM &&
+   if (nvk_video_image_layout_supported(pdev, vk_format, tiling, drm_format_mod) &&
        nvk_video_enabled(instance, &pdev->info)) {
       features |= VK_FORMAT_FEATURE_VIDEO_DECODE_OUTPUT_BIT_KHR;
       features |= VK_FORMAT_FEATURE_VIDEO_DECODE_DPB_BIT_KHR;
@@ -226,12 +240,15 @@ nvk_get_drm_format_modifier_properties_list(const struct nvk_physical_device *pd
    uint64_t mods[NIL_MAX_DRM_FORMAT_MODS];
    const struct vk_format_ycbcr_info *ycbcr_info =
       vk_format_get_ycbcr_info(vk_format);
-   if (ycbcr_info != NULL) {
+   if (ycbcr_info != NULL &&
+       !(pdev->info.device_id == 0x2584 &&
+         vk_format == VK_FORMAT_G8_B8R8_2PLANE_420_UNORM)) {
       mods[0] = DRM_FORMAT_MOD_LINEAR;
       mod_count = 1;
    } else {
       mod_count = NIL_MAX_DRM_FORMAT_MODS;
-      enum pipe_format p_format = nvk_format_to_pipe_format(vk_format);
+      enum pipe_format p_format = nvk_format_to_pipe_format(
+         ycbcr_info ? ycbcr_info->planes[0].format : vk_format);
       nil_drm_format_mods_for_format(&pdev->info, nil_format(p_format),
                                      &mod_count, &mods);
       if (mod_count == 0) {
@@ -370,7 +387,12 @@ nvk_GetPhysicalDeviceImageFormatProperties2(
           sizeof(pImageFormatProperties->imageFormatProperties));
 
    uint64_t drm_format_mod =
-      get_explicit_drm_format_mod(pImageFormatInfo->pNext);
+       get_explicit_drm_format_mod(pImageFormatInfo->pNext);
+   if ((pImageFormatInfo->usage & (VK_IMAGE_USAGE_VIDEO_DECODE_DST_BIT_KHR |
+                                   VK_IMAGE_USAGE_VIDEO_DECODE_DPB_BIT_KHR)) &&
+       !nvk_video_image_layout_supported(pdev, pImageFormatInfo->format,
+                                         pImageFormatInfo->tiling, drm_format_mod))
+      return VK_ERROR_FORMAT_NOT_SUPPORTED;
    const struct vk_format_ycbcr_info *ycbcr_info =
       vk_format_get_ycbcr_info(pImageFormatInfo->format);
 
@@ -956,7 +978,9 @@ nvk_image_init(struct nvk_device *dev,
             vk_find_struct_const(pCreateInfo->pNext,
                                  IMAGE_DRM_FORMAT_MODIFIER_LIST_CREATE_INFO_EXT);
 
-         if (ycbcr_info != NULL) {
+         if (ycbcr_info != NULL &&
+             !(pdev->info.device_id == 0x2584 &&
+               image->vk.format == VK_FORMAT_G8_B8R8_2PLANE_420_UNORM)) {
             /* Multi-planar formats only ever advertise LINEAR (see
              * nvk_get_drm_format_properties()), and nil has no format for the
              * combined multi-planar format, so pick LINEAR out of the list
@@ -970,8 +994,8 @@ nvk_image_init(struct nvk_device *dev,
                }
             }
          } else {
-            enum pipe_format p_format =
-               nvk_format_to_pipe_format(image->vk.format);
+            enum pipe_format p_format = nvk_format_to_pipe_format(
+               ycbcr_info ? ycbcr_info->planes[0].format : image->vk.format);
             image->vk.drm_format_mod =
                nil_select_best_drm_format_mod(&pdev->info, nil_format(p_format),
                                               mod_list_info->drmFormatModifierCount,

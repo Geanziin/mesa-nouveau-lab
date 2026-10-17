@@ -375,6 +375,30 @@ nouveau_fence_wait(struct nouveau_fence *fence, struct util_debug_callback *debu
 }
 
 bool
+nouveau_fence_wait_timeout(struct nouveau_fence *fence, uint64_t timeout)
+{
+   if (!timeout)
+      return nouveau_fence_signalled(fence);
+   if (timeout == OS_TIMEOUT_INFINITE)
+      return nouveau_fence_wait(fence, NULL);
+
+   const uint64_t start = os_time_get_nano();
+   simple_mtx_lock(&fence->screen->fence.lock);
+   bool ready = _nouveau_fence_signalled(fence) || nouveau_fence_kick(fence);
+   simple_mtx_unlock(&fence->screen->fence.lock);
+   if (!ready)
+      return false;
+
+   while (!nouveau_fence_signalled(fence)) {
+      uint64_t elapsed = (uint64_t)os_time_get_nano() - start;
+      if (elapsed >= timeout)
+         return false;
+      os_time_sleep(MIN2((timeout - elapsed) / 1000, 50));
+   }
+   return true;
+}
+
+bool
 nouveau_fence_next_if_current(struct nouveau_context *nv, struct nouveau_fence *fence)
 {
    bool result = true;

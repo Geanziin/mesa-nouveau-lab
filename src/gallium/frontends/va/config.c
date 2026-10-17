@@ -293,8 +293,18 @@ vlVaGetConfigAttributes(VADriverContextP ctx, VAProfile profile, VAEntrypoint en
             int supports_qvbr = pscreen->get_video_param(pscreen, ProfileToPipe(profile),
                                              PIPE_VIDEO_ENTRYPOINT_ENCODE,
                                              PIPE_VIDEO_CAP_ENC_RATE_CONTROL_QVBR);
-            if (supports_qvbr > 0)
-               value |= VA_RC_QVBR;
+             if (supports_qvbr > 0)
+                value |= VA_RC_QVBR;
+             int modes = pscreen->get_video_param(pscreen, ProfileToPipe(profile),
+                                                  PIPE_VIDEO_ENTRYPOINT_ENCODE,
+                                                  PIPE_VIDEO_CAP_ENC_RATE_CONTROL_MODES);
+             if (modes > 0) {
+                value = 0;
+                if (modes & (1 << PIPE_H2645_ENC_RATE_CONTROL_METHOD_DISABLE)) value |= VA_RC_CQP;
+                if (modes & (1 << PIPE_H2645_ENC_RATE_CONTROL_METHOD_CONSTANT)) value |= VA_RC_CBR;
+                if (modes & (1 << PIPE_H2645_ENC_RATE_CONTROL_METHOD_VARIABLE)) value |= VA_RC_VBR;
+                if (modes & (1 << PIPE_H2645_ENC_RATE_CONTROL_METHOD_QUALITY_VARIABLE)) value |= VA_RC_QVBR;
+             }
          } break;
          case VAConfigAttribEncRateControlExt:
             value = pscreen->get_video_param(pscreen, ProfileToPipe(profile),
@@ -306,8 +316,11 @@ vlVaGetConfigAttributes(VADriverContextP ctx, VAProfile profile, VAEntrypoint en
                value |= (1 << 8);   /* temporal_layer_bitrate_control_flag */
             }
             break;
-         case VAConfigAttribEncPackedHeaders:
-            value = VA_ENC_PACKED_HEADER_NONE;
+          case VAConfigAttribEncPackedHeaders:
+             value = VA_ENC_PACKED_HEADER_NONE;
+             if (pscreen->get_video_param(pscreen, ProfileToPipe(profile), PIPE_VIDEO_ENTRYPOINT_ENCODE,
+                                         PIPE_VIDEO_CAP_ENC_DRIVER_GENERATED_HEADERS))
+                break;
             if ((u_reduce_video_profile(ProfileToPipe(profile)) == PIPE_VIDEO_FORMAT_MPEG4_AVC))
                value |= ENC_PACKED_HEADERS_H264;
             else if ((u_reduce_video_profile(ProfileToPipe(profile)) == PIPE_VIDEO_FORMAT_HEVC))

@@ -226,22 +226,28 @@ nvk_GetPhysicalDeviceVideoFormatPropertiesKHR(VkPhysicalDevice physicalDevice,
    if (video_usage == 0)
       return VK_ERROR_IMAGE_USAGE_NOT_SUPPORTED_KHR;
 
-   vk_outarray_append_typed(VkVideoFormatPropertiesKHR, &out, p) {
-      p->format = VK_FORMAT_G8_B8R8_2PLANE_420_UNORM;
-      p->imageType = VK_IMAGE_TYPE_2D;
-      p->imageTiling = VK_IMAGE_TILING_OPTIMAL;
+   VK_FROM_HANDLE(nvk_physical_device, pdev, physicalDevice);
+   const unsigned tiling_count = pdev->info.device_id == 0x2584 ? 2 : 1;
+   for (unsigned i = 0; i < tiling_count; i++) {
+      vk_outarray_append_typed(VkVideoFormatPropertiesKHR, &out, p) {
+         p->format = VK_FORMAT_G8_B8R8_2PLANE_420_UNORM;
+         p->imageType = VK_IMAGE_TYPE_2D;
+         p->imageTiling = i == 0 ? VK_IMAGE_TILING_OPTIMAL : VK_IMAGE_TILING_DRM_FORMAT_MODIFIER_EXT;
       /* Report the create flags video images actually support. */
-      p->imageCreateFlags = VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT |
-                            VK_IMAGE_CREATE_EXTENDED_USAGE_BIT |
-                            VK_IMAGE_CREATE_ALIAS_BIT;
+         p->imageCreateFlags = VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT |
+                                VK_IMAGE_CREATE_EXTENDED_USAGE_BIT |
+                                VK_IMAGE_CREATE_ALIAS_BIT;
+         if (pdev->info.device_id == 0x2584)
+            p->imageCreateFlags |= VK_IMAGE_CREATE_VIDEO_PROFILE_INDEPENDENT_BIT_KHR;
       /* Only VK_VIDEO_DECODE_CAPABILITY_DPB_AND_OUTPUT_COINCIDE_BIT_KHR is
        * advertised, so DPB and decode output usage always come together on
        * the same image.
        */
-      p->imageUsageFlags = pVideoFormatInfo->imageUsage | decode_usage |
-                           VK_IMAGE_USAGE_SAMPLED_BIT |
-                           VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
-                           VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+         p->imageUsageFlags = pVideoFormatInfo->imageUsage | decode_usage |
+                               VK_IMAGE_USAGE_SAMPLED_BIT |
+                               VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
+                               VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+      }
    }
 
    return vk_outarray_status(&out);

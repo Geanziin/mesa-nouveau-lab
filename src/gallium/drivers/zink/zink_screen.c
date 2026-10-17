@@ -2705,10 +2705,63 @@ zink_query_memory_info(struct pipe_screen *pscreen, struct pipe_memory_info *inf
    }
 }
 
+static bool
+zink_lowered_planar(struct zink_screen *screen, enum pipe_format format)
+{
+   return util_format_get_num_planes(format) > 1 && !zink_get_format(screen, format);
+}
+
+static bool
+zink_plane_has_modifier(struct zink_screen *screen, enum pipe_format format,
+                        uint64_t modifier, unsigned *plane_count)
+{
+   const struct zink_modifier_props *props = zink_get_modifier_props(screen, format);
+   for (unsigned i = 0; i < props->drmFormatModifierCount; i++) {
+      if (props->pDrmFormatModifierProperties[i].drmFormatModifier == modifier) {
+         if (plane_count)
+            *plane_count = props->pDrmFormatModifierProperties[i].drmFormatModifierPlaneCount;
+         return true;
+      }
+   }
+   return false;
+}
+
+static bool
+zink_lowered_planar_has_modifier(struct zink_screen *screen, enum pipe_format format,
+                                 uint64_t modifier)
+{
+   const unsigned planes = util_format_get_num_planes(format);
+   for (unsigned p = 0; p < planes; p++) {
+      unsigned plane_count = 0;
+      if (!zink_plane_has_modifier(screen, util_format_get_plane_format(format, p),
+                                   modifier, &plane_count) || plane_count != 1)
+         return false;
+   }
+   return true;
+}
+
 static void
 zink_query_dmabuf_modifiers(struct pipe_screen *pscreen, enum pipe_format format, int max, uint64_t *modifiers, unsigned int *external_only, int *count)
 {
    struct zink_screen *screen = zink_screen(pscreen);
+   if (zink_lowered_planar(screen, format)) {
+      const enum pipe_format plane0 = util_format_get_plane_format(format, 0);
+      const struct zink_modifier_props *props0 = zink_get_modifier_props(screen, plane0);
+      int n = 0;
+      for (unsigned i = 0; i < props0->drmFormatModifierCount; i++) {
+         const uint64_t mod = props0->pDrmFormatModifierProperties[i].drmFormatModifier;
+         if (!zink_lowered_planar_has_modifier(screen, format, mod))
+            continue;
+         if (n < max) {
+            modifiers[n] = mod;
+            if (external_only)
+               external_only[n] = true;
+         }
+         n++;
+      }
+      *count = n;
+      return;
+   }
    const struct zink_modifier_props *props = zink_get_modifier_props(screen, format);
    *count = props->drmFormatModifierCount;
    for (int i = 0; i < MIN2(max, *count); i++) {
@@ -2722,6 +2775,13 @@ static bool
 zink_is_dmabuf_modifier_supported(struct pipe_screen *pscreen, uint64_t modifier, enum pipe_format format, bool *external_only)
 {
    struct zink_screen *screen = zink_screen(pscreen);
+   if (zink_lowered_planar(screen, format)) {
+      if (!zink_lowered_planar_has_modifier(screen, format, modifier))
+         return false;
+      if (external_only)
+         *external_only = true;
+      return true;
+   }
    const struct zink_modifier_props *props = zink_get_modifier_props(screen, format);
    for (unsigned i = 0; i < props->drmFormatModifierCount; i++)
       if (props->pDrmFormatModifierProperties[i].drmFormatModifier == modifier)
@@ -2733,6 +2793,8 @@ static unsigned
 zink_get_dmabuf_modifier_planes(struct pipe_screen *pscreen, uint64_t modifier, enum pipe_format format)
 {
    struct zink_screen *screen = zink_screen(pscreen);
+   if (zink_lowered_planar(screen, format))
+      return util_format_get_num_planes(format);
    const struct zink_modifier_props *props = zink_get_modifier_props(screen, format);
    for (unsigned i = 0; i < props->drmFormatModifierCount; i++)
       if (props->pDrmFormatModifierProperties[i].drmFormatModifier == modifier)

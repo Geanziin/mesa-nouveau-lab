@@ -177,10 +177,22 @@ nvk_AllocateMemory(VkDevice device,
          /* This image might be shared with GL so we need to set the BO flags
           * such that GL can bind and use it.
           */
-         assert(image->plane_count == 1);
+         const bool shared_nv12 = pdev->info.device_id == 0x2584 &&
+            image->vk.format == VK_FORMAT_G8_B8R8_2PLANE_420_UNORM;
+         const uint16_t shared_tile_mode = (image->vk.drm_format_mod & 0xf) << 4;
+         for (uint8_t p = 1; p < image->plane_count; p++) {
+            if (image->planes[p].nil.pte_kind != image->planes[0].nil.pte_kind ||
+                (shared_nv12 ?
+                 ((image->planes[p].nil.tile_mode & 0xff0f) ||
+                  image->planes[p].nil.tile_mode > shared_tile_mode) :
+                 image->planes[p].nil.tile_mode != image->planes[0].nil.tile_mode)) {
+               result = vk_error(dev, VK_ERROR_INVALID_EXTERNAL_HANDLE);
+               goto fail_alloc;
+            }
+         }
          alignment = MAX2(alignment, image->planes[0].nil.align_B);
          pte_kind = image->planes[0].nil.pte_kind;
-         tile_mode = image->planes[0].nil.tile_mode;
+         tile_mode = shared_nv12 ? shared_tile_mode : image->planes[0].nil.tile_mode;
       } else if (image->can_compress && not_shared) {
          /* If it's a dedicated alloc and it's not modifiers or shared, then
           * it's marked for compression and larger pages, so we set the pinned

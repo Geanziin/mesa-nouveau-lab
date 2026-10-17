@@ -182,6 +182,38 @@ fn addr_hi(addr: u64) -> u32 {
     (addr >> 8).try_into().unwrap()
 }
 
+fn raster_scaling_list<const N: usize>(
+    source: &[u8],
+    target: &mut [[u8; N]; N],
+) {
+    let mut index = 0;
+    for diagonal in 0..(N * 2 - 1) {
+        let first = diagonal.saturating_sub(N - 1);
+        let last = diagonal.min(N - 1);
+        for position in first..=last {
+            let x = if diagonal % 2 == 1 {
+                last - (position - first)
+            } else {
+                position
+            };
+            target[diagonal - x][x] = source[index];
+            index += 1;
+        }
+    }
+}
+
+fn set_scaling_lists(
+    pic: &mut _nvdec_h264_pic_s,
+    lists: &ffi::StdVideoH264ScalingLists,
+) {
+    for i in 0..6 {
+        raster_scaling_list(&lists.ScalingList4x4[i], &mut pic.WeightScale[i]);
+    }
+    for i in 0..2 {
+        raster_scaling_list(&lists.ScalingList8x8[i], &mut pic.WeightScale8x8[i]);
+    }
+}
+
 /// Address (already shifted right by 8, as the hardware expects) of the given
 /// plane and DPB array layer of an image. For "separated" DPB the layer is 0
 /// and this is just the plane base address; for "layered" DPB the layer selects
@@ -418,16 +450,16 @@ impl Decoder {
 
             dpb_entry.FieldOrderCnt[0] =
                 if vk_ref_info.PicOrderCnt[0] != i32::MAX {
-                    vk_ref_info.PicOrderCnt[0].try_into().unwrap()
+                    vk_ref_info.PicOrderCnt[0] as u32
                 } else {
-                    vk_ref_info.PicOrderCnt[1].try_into().unwrap()
+                    vk_ref_info.PicOrderCnt[1] as u32
                 };
 
             dpb_entry.FieldOrderCnt[1] =
                 if vk_ref_info.PicOrderCnt[1] != i32::MAX {
-                    vk_ref_info.PicOrderCnt[1].try_into().unwrap()
+                    vk_ref_info.PicOrderCnt[1] as u32
                 } else {
-                    vk_ref_info.PicOrderCnt[0].try_into().unwrap()
+                    vk_ref_info.PicOrderCnt[0] as u32
                 };
 
             dpb_entry.FrameIdx = vk_ref_info.FrameNum.try_into().unwrap();
@@ -642,8 +674,15 @@ impl VideoDecoder for Decoder {
             std_pic_info.PicOrderCnt[0]
         };
 
-        nvh264.WeightScale = [[[0x10; 4]; 4]; 6];
-        nvh264.WeightScale8x8 = [[[0x10; 8]; 8]; 2];
+        let mut scaling_lists = ffi::StdVideoH264ScalingLists::default();
+        unsafe {
+            ffi::vk_video_derive_h264_scaling_list(
+                &sps,
+                &pps,
+                &mut scaling_lists,
+            );
+        }
+        set_scaling_lists(&mut nvh264, &scaling_lists);
 
         // NVDEC wants sliceCount+1 entries: the byte offset of each slice plus a
         // final entry marking the end of the last slice. Vulkan's pSliceOffsets
@@ -719,7 +758,7 @@ impl VideoDecoder for Decoder {
             gptimer_on: 1,
             err_conceal_on: 1,
             mbtimer_on: 1,
-            error_frm_idx: self.frame_num % u32::from(sps.max_num_ref_frames),
+            error_frm_idx: self.frame_num % u32::from(sps.max_num_ref_frames).max(1),
             ret_error: 0,
             ec_intra_frame_using_pslc: 0,
             all_intra_frame: 0,
