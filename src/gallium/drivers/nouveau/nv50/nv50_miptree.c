@@ -191,6 +191,8 @@ nv50_miptree_get_handle(struct pipe_screen *pscreen,
       return false;
 
    stride = mt->level[0].pitch;
+   whandle->offset = mt->level[0].offset;
+   whandle->size = mt->base.bo->size;
 
    return nouveau_screen_bo_get_handle(pscreen,
                                        mt->base.bo,
@@ -396,6 +398,18 @@ nv50_miptree_create(struct pipe_screen *pscreen,
    return pt;
 }
 
+static bool
+nv50_import_range_valid(uint64_t size, uint64_t offset, uint32_t pitch,
+                       uint64_t row_bytes, uint32_t height, unsigned tile_shift)
+{
+   if (offset >= size || (offset & 4095) || !pitch || pitch < row_bytes ||
+       !height || tile_shift > 8)
+      return false;
+   uint64_t tile_height = 1ull << tile_shift;
+   uint64_t rows = ((uint64_t)height + tile_height - 1) & ~(tile_height - 1);
+   return rows <= (size - offset) / pitch;
+}
+
 struct pipe_resource *
 nv50_miptree_from_handle(struct pipe_screen *pscreen,
                          const struct pipe_resource *templ,
@@ -416,7 +430,9 @@ nv50_miptree_from_handle(struct pipe_screen *pscreen,
    if (!mt)
       return NULL;
 
-   mt->base.bo = nouveau_screen_bo_from_handle(pscreen, whandle, &stride);
+   struct winsys_handle bo_handle = *whandle;
+   bo_handle.offset = 0;
+   mt->base.bo = nouveau_screen_bo_from_handle(pscreen, &bo_handle, &stride);
    if (mt->base.bo == NULL) {
       FREE(mt);
       return NULL;
@@ -428,7 +444,21 @@ nv50_miptree_from_handle(struct pipe_screen *pscreen,
    pipe_reference_init(&mt->base.base.reference, 1);
    mt->base.base.screen = pscreen;
    mt->level[0].pitch = stride;
-   mt->level[0].offset = 0;
+   unsigned tile_shift = mt->base.bo->config.nv50.memtype ?
+      3 + ((mt->base.bo->config.nv50.tile_mode >> 4) & 0xf) : 0;
+   if (whandle->offset >= mt->base.bo->size ||
+       (whandle->offset && (pscreen->caps.device_id != 0x2584 ||
+        pscreen->caps.vendor_id != 0x10de || templ->nr_samples > 1 ||
+        util_format_get_blockwidth(templ->format) != 1 ||
+        util_format_get_blockheight(templ->format) != 1 ||
+        !nv50_import_range_valid(mt->base.bo->size, whandle->offset, stride,
+                                (uint64_t)templ->width0 * util_format_get_blocksize(templ->format),
+                                templ->height0, tile_shift)))) {
+      nouveau_bo_ref(NULL, &mt->base.bo);
+      FREE(mt);
+      return NULL;
+   }
+   mt->level[0].offset = whandle->offset;
    mt->level[0].tile_mode = mt->base.bo->config.nv50.tile_mode;
 
    NOUVEAU_DRV_STAT(nouveau_screen(pscreen), tex_obj_current_count, 1);

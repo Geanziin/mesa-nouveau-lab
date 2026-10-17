@@ -58,7 +58,9 @@ vl_drm_screen_create(int fd, bool honor_dri_prime, bool zink)
    if (!vscreen)
       return NULL;
 
-   if (pipe_loader_drm_probe_fd(&vscreen->dev, fd, zink))
+   bool probed = zink ? pipe_loader_drm_probe_fd(&vscreen->dev, fd, zink) :
+                        pipe_loader_drm_probe_fd_video(&vscreen->dev, fd);
+   if (probed)
       vscreen->pscreen = pipe_loader_create_screen(vscreen->dev, false);
 
    if (libva_owned_fd >= 0 && libva_owned_fd != fd)

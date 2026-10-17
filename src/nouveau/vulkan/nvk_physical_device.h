@@ -90,7 +90,8 @@ nvk_video_enabled(const struct nvk_instance *instance,
                   const struct nv_device_info *info)
 {
    return (instance->experimental_flags & NVK_EXPERIMENTAL_VIDEO) &&
-          info->has_video && VIDEO_CODEC_H264DEC;
+          info->has_video && VIDEO_CODEC_H264DEC &&
+          (instance->experimental_explicit || info->chipset == 0x177);
 }
 
 VkResult nvk_create_drm_physical_device(struct vk_instance *vk_instance,

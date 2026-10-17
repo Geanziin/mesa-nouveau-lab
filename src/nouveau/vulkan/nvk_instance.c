@@ -109,7 +109,11 @@ nvk_init_experimental_flags(struct nvk_instance *instance)
       { NULL, 0 },
    };
 
-   instance->experimental_flags = parse_debug_string(os_get_option("NVK_EXPERIMENTAL"), flags);
+   const char *env = os_get_option("NVK_EXPERIMENTAL");
+
+   instance->experimental_explicit = env != NULL;
+   instance->experimental_flags =
+      env ? parse_debug_string(env, flags) : NVK_EXPERIMENTAL_VIDEO;
 }
 
 static void

@@ -20,6 +20,7 @@ enum nouveau_ws_engines {
    NOUVEAU_WS_ENGINE_M2MF     = (1 << 3),
    NOUVEAU_WS_ENGINE_COMPUTE  = (1 << 4),
    NOUVEAU_WS_ENGINE_VDEC     = (1 << 6),
+   NOUVEAU_WS_ENGINE_VENC     = (1 << 7),
 };
 
 #define NOUVEAU_WS_ALL_3D_ENGINES ( \
@@ -41,6 +42,7 @@ struct nouveau_ws_context {
    struct nouveau_ws_object m2mf;
    struct nouveau_ws_object compute;
    struct nouveau_ws_object vdec;
+   struct nouveau_ws_object venc;
 };
 
 int nouveau_ws_context_create(struct nouveau_ws_device *,
