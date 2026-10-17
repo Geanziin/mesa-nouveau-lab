@@ -560,17 +560,35 @@ nvfx_vertprog_parse_instruction(struct nvfx_vpc *vpc,
       NOUVEAU_ERR("CEIL should have been lowered.\n");
       break;
    case TGSI_OPCODE_CMP:
-      insn = arith(0, VEC, MOV, none.reg, mask, src[0], none, none);
-      insn.cc_update = 1;
-      nvfx_vp_emit(vpc, insn);
+       /* we need to preserve original source for second operation */
+       if(dst.index == src[1].reg.index && dst.type == src[1].reg.type) {
+           tmp = nvfx_src(temp(vpc));
+           insn = arith(0, VEC, MOV, none.reg, mask, src[0], none, none);
+           insn.cc_update = 1;
+           nvfx_vp_emit(vpc, insn);
 
-      insn = arith(sat, VEC, MOV, dst, mask, src[2], none, none);
-      insn.cc_test = NVFX_COND_GE;
-      nvfx_vp_emit(vpc, insn);
+           insn = arith(sat, VEC, MOV, tmp.reg, NVFX_VP_MASK_ALL, src[2], none, none);
+           nvfx_vp_emit(vpc, insn);
 
-      insn = arith(sat, VEC, MOV, dst, mask, src[1], none, none);
-      insn.cc_test = NVFX_COND_LT;
-      nvfx_vp_emit(vpc, insn);
+           insn = arith(sat, VEC, MOV, tmp.reg, NVFX_VP_MASK_ALL, src[1], none, none);
+           insn.cc_test = NVFX_COND_LT;
+           nvfx_vp_emit(vpc, insn);
+
+           insn = arith(sat, VEC, MOV, dst, mask, tmp, none, none);
+           nvfx_vp_emit(vpc, insn);
+       } else {
+           tmp = nvfx_src(temp(vpc));
+           insn = arith(0, VEC, MOV, none.reg, mask, src[0], none, none);
+           insn.cc_update = 1;
+           nvfx_vp_emit(vpc, insn);
+
+           insn = arith(sat, VEC, MOV, dst, mask, src[2], none, none);
+           nvfx_vp_emit(vpc, insn);
+
+           insn = arith(sat, VEC, MOV, dst, mask, src[1], none, none);
+           insn.cc_test = NVFX_COND_LT;
+           nvfx_vp_emit(vpc, insn);
+       }
       break;
    case TGSI_OPCODE_COS:
       nvfx_vp_emit(vpc, arith(sat, SCA, COS, dst, mask, none, none, src[0]));
