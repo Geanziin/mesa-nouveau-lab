@@ -2823,13 +2823,9 @@ zink_is_dmabuf_modifier_supported(struct pipe_screen *pscreen, uint64_t modifier
       return true;
    }
    const struct zink_modifier_props *props = zink_get_modifier_props(screen, format);
-   for (unsigned i = 0; i < props->drmFormatModifierCount; i++) {
-      if (props->pDrmFormatModifierProperties[i].drmFormatModifier == modifier) {
-         if (external_only)
-            *external_only = !(props->pDrmFormatModifierProperties[i].drmFormatModifierTilingFeatures & VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT);
+   for (unsigned i = 0; i < props->drmFormatModifierCount; i++)
+      if (props->pDrmFormatModifierProperties[i].drmFormatModifier == modifier)
          return true;
-      }
-   }
    return false;
 }
 
