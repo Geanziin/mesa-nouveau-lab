@@ -131,8 +131,9 @@ nouveau_nvenc_h264_idr_feedback(const nvenc_pic_stat_s *feedback,
 {
    if (!feedback || !output_bytes || !completion_signalled ||
        feedback->picture_index != picture_index || feedback->error_status ||
-       feedback->ucode_error_status || feedback->pic_type != 3 || feedback->num_slices != 1 ||
-       !feedback->total_bit_count ||
+       feedback->ucode_error_status ||
+       (feedback->pic_type != 3 && feedback->pic_type != 0) ||
+       feedback->num_slices != 1 || !feedback->total_bit_count ||
        (uint64_t)feedback->total_bit_count > (uint64_t)bitstream_bytes * 8)
       return false;
    *output_bytes = ((uint64_t)feedback->total_bit_count + 7) / 8;

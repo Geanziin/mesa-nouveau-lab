@@ -754,7 +754,7 @@ nvenc_backend_collect(struct nvenc_backend *s,
    nvenc_pic_stat_s stat;
    memcpy(&stat, slot->buffers[SLOT_STATUS].map, sizeof(stat));
    if (stat.picture_index != ticket->seq || stat.error_status != 2 ||
-       stat.ucode_error_status || stat.pic_type != 3 ||
+       stat.ucode_error_status || (stat.pic_type != 3 && stat.pic_type != 0) ||
        stat.num_slices != 1 || !stat.total_bit_count ||
        stat.total_bit_count > (4u << 20) * 8) {
       ret = -EIO;
