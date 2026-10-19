@@ -573,8 +573,14 @@ nvc0_magic_3d_init(struct nouveau_pushbuf *push, uint16_t obj_class)
       }
    }
 
-   /* TODO: find out what software methods 0x1528, 0x1280 and (on nve4) 0x02dc
-    * are supposed to do */
+   if (obj_class >= GM107_3D_CLASS) {
+      /* From NVIDIA proprietary driver 615.78.08 (Turing/Ampere/Ada class C597/C697/C797):
+       * Method 0x1528 is SET_SHADER_EXCEPTIONS.
+       * Disabling shader exceptions (value 0) matches OpenGL driver behavior.
+       */
+      BEGIN_NVC0(push, SUBC_3D(0x1528), 1);
+      PUSH_DATA (push, 0);
+   }
 }
 
 static void

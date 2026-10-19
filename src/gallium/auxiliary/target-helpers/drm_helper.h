@@ -133,8 +133,19 @@ pipe_nouveau_create_screen(int fd, const struct pipe_screen_config *config)
 }
 DRM_DRIVER_DESCRIPTOR(nouveau, NULL, 0)
 
+static struct pipe_screen *
+pipe_nvgd_create_screen(int fd, const struct pipe_screen_config *config)
+{
+   struct pipe_screen *screen;
+
+   screen = nouveau_drm_screen_create(fd);
+   return screen ? debug_screen_wrap(screen) : NULL;
+}
+DRM_DRIVER_DESCRIPTOR(nvgd, NULL, 0)
+
 #else
 DRM_DRIVER_DESCRIPTOR_STUB(nouveau)
+DRM_DRIVER_DESCRIPTOR_STUB(nvgd)
 #endif
 
 #if defined(GALLIUM_VC4) || defined(GALLIUM_V3D)

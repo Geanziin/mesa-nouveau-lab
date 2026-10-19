@@ -172,9 +172,8 @@ nouveau_zink_predicate(int fd, const char *driver)
       r.param = NOUVEAU_GETPARAM_CHIPSET_ID;
       r.value = 0;
       ret = drmCommandWriteRead(fd, DRM_NOUVEAU_GETPARAM, &r, sizeof(r));
-      if (ret == 0 && r.value >= 0x160) {
-         prefer_zink = true;
-      }
+      /* Do not prefer Zink: use direct hardware NVGD OpenGL driver */
+      prefer_zink = false;
       /* Nouveau GL isn't enabled on anything after Ada */
       if (ret == 0 && r.value >= 0x1a0) {
          require_zink = true;
@@ -202,7 +201,7 @@ nouveau_zink_predicate(int fd, const char *driver)
    if (use_zink && !strcmp(driver, "zink"))
       return true;
 
-   if (!use_zink && !strcmp(driver, "nouveau"))
+   if (!use_zink && (!strcmp(driver, "nvgd") || !strcmp(driver, "nouveau")))
       return true;
    return false;
 #endif

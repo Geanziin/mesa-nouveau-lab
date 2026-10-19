@@ -43,10 +43,53 @@
 int nouveau_mesa_debug = 0;
 
 static const char *
+nvgd_get_chip_family_name(uint32_t chipset)
+{
+   switch (chipset & ~0xf) {
+   case 0x190: return "ada";
+   case 0x170:
+      if (chipset == 0x177) return "ga107";
+      if (chipset == 0x176) return "ga106";
+      if (chipset == 0x174) return "ga104";
+      if (chipset == 0x172) return "ga102";
+      return "ampere";
+   case 0x160: return "turing";
+   case 0x140: return "pascal";
+   case 0x130: return "maxwell";
+   case 0x120:
+   case 0x110: return "maxwell";
+   case 0x100:
+   case 0xf0:
+   case 0xe0:  return "kepler";
+   case 0xd0:
+   case 0xc0:  return "fermi";
+   default:    return "nv";
+   }
+}
+
+static const char *
+nvgd_get_marketing_name(uint32_t chipset)
+{
+   if (chipset == 0x177)
+      return "NVIDIA GeForce RTX 3050 (GA107)";
+   if (chipset == 0x172)
+      return "NVIDIA GeForce RTX 3080/3090";
+   if (chipset == 0x174)
+      return "NVIDIA GeForce RTX 3070";
+   if (chipset == 0x176)
+      return "NVIDIA GeForce RTX 3060";
+   if (chipset >= 0x190 && chipset <= 0x197)
+      return "NVIDIA GeForce RTX 40 Series";
+   if (chipset >= 0x160 && chipset <= 0x168)
+      return "NVIDIA GeForce GTX 16 / RTX 20 Series";
+   return "NVIDIA Graphics Device";
+}
+
+static const char *
 nouveau_screen_get_name(struct pipe_screen *pscreen)
 {
    struct nouveau_screen *screen = nouveau_screen(pscreen);
-   return screen->chipset_name;
+   return screen->renderer_string[0] ? screen->renderer_string : screen->chipset_name;
 }
 
 static const char *
@@ -414,6 +457,11 @@ nouveau_screen_init(struct nouveau_screen *screen, struct nouveau_device *dev)
       screen->cpu_gpu_time_delta = time - screen->cpu_gpu_time_delta * 1000;
 
    snprintf(screen->chipset_name, sizeof(screen->chipset_name), "NV%02X", dev->chipset);
+   snprintf(screen->renderer_string, sizeof(screen->renderer_string),
+            "%s (nvgd, %s, DRM %d.%d)",
+            nvgd_get_marketing_name(dev->chipset),
+            nvgd_get_chip_family_name(dev->chipset),
+            screen->drm->version >> 8, screen->drm->version & 0xff);
    pscreen->get_name = nouveau_screen_get_name;
    pscreen->get_screen_fd = nouveau_screen_get_fd;
    pscreen->get_vendor = nouveau_screen_get_vendor;

@@ -102,7 +102,7 @@ foreach d : [[with_gallium_kmsro, [
                'zynqmp-dpsub',
              ]],
              [with_gallium_radeonsi, ['radeonsi']],
-             [with_gallium_nouveau, ['nouveau']],
+             [with_gallium_nouveau, ['nouveau', 'nvgd']],
              [with_gallium_freedreno, ['msm', 'kgsl']],
              [with_gallium_swrast, ['swrast']],
              [with_gallium_swrast and with_gallium_drisw_kms, ['kms_swrast']],

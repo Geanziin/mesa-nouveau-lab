@@ -71,6 +71,7 @@ static const struct drm_driver_descriptor *driver_descriptors[] = {
    &iris_driver_descriptor,
    &crocus_driver_descriptor,
    &nouveau_driver_descriptor,
+   &nvgd_driver_descriptor,
    &r300_driver_descriptor,
    &r600_driver_descriptor,
    &radeonsi_driver_descriptor,

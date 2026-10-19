@@ -74,6 +74,7 @@ if with_gallium_va
   foreach d : [[with_gallium_r600, 'r600'],
               [with_gallium_radeonsi, 'radeonsi'],
               [with_gallium_nouveau, 'nouveau'],
+              [with_gallium_nouveau, 'nvgd'],
               [with_gallium_virgl, 'virtio_gpu'],
               [with_gallium_d3d12_video, 'd3d12'],
               [with_gallium_zink, 'zink']]
