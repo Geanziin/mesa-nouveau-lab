@@ -5,8 +5,13 @@
 
 #include "nv50/g80_defs.xml.h"
 
+#include "util/u_threaded_context.h"
+
 struct nv50_transfer {
-   struct pipe_transfer base;
+   union {
+      struct pipe_transfer base;
+      struct threaded_transfer tc_base;
+   };
    struct nv50_m2mf_rect rect[2];
    uint32_t nblocksx;
    uint32_t nblocksy;

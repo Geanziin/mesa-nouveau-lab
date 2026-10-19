@@ -282,6 +282,7 @@ nouveau_buffer_transfer_init(struct nouveau_transfer *tx,
                              const struct pipe_box *box,
                              unsigned usage)
 {
+   memset(tx, 0, sizeof(*tx));
    tx->base.resource = resource;
    tx->base.level = 0;
    tx->base.usage = usage;
@@ -356,6 +357,8 @@ nouveau_buffer_cache(struct nouveau_context *nv, struct nv04_resource *buf)
 static inline bool
 nouveau_buffer_should_discard(struct nv04_resource *buf, unsigned usage)
 {
+   if (usage & TC_TRANSFER_MAP_NO_INVALIDATE)
+      return false;
    if (!(usage & PIPE_MAP_DISCARD_WHOLE_RESOURCE))
       return false;
    if (unlikely(buf->base.bind & PIPE_BIND_SHARED))
@@ -401,7 +404,7 @@ nouveau_buffer_transfer_map(struct pipe_context *pipe,
    if (buf->status & NOUVEAU_BUFFER_STATUS_USER_PTR)
       return nouveau_user_ptr_transfer_map(pipe, resource, level, usage, box, ptransfer);
 
-   struct nouveau_transfer *tx = MALLOC_STRUCT(nouveau_transfer);
+   struct nouveau_transfer *tx = CALLOC_STRUCT(nouveau_transfer);
    uint8_t *map;
    int ret;
 
@@ -422,9 +425,11 @@ nouveau_buffer_transfer_map(struct pipe_context *pipe,
     * uninitialized, the GPU can't care what was there, and so we can treat
     * the write as being unsynchronized.
     */
-   if ((usage & PIPE_MAP_WRITE) &&
-       !util_ranges_intersect(&buf->valid_buffer_range, box->x, box->x + box->width))
-      usage |= PIPE_MAP_DISCARD_RANGE | PIPE_MAP_UNSYNCHRONIZED;
+   if (!(usage & TC_TRANSFER_MAP_NO_INFER_UNSYNCHRONIZED)) {
+      if ((usage & PIPE_MAP_WRITE) &&
+          !util_ranges_intersect(&buf->valid_buffer_range, box->x, box->x + box->width))
+         usage |= PIPE_MAP_DISCARD_RANGE | PIPE_MAP_UNSYNCHRONIZED;
+   }
 
    if (buf->domain == NOUVEAU_BO_VRAM) {
       if (usage & NOUVEAU_TRANSFER_DISCARD) {
@@ -656,7 +661,7 @@ nouveau_user_ptr_transfer_map(struct pipe_context *pipe,
                               const struct pipe_box *box,
                               struct pipe_transfer **ptransfer)
 {
-   struct nouveau_transfer *tx = MALLOC_STRUCT(nouveau_transfer);
+   struct nouveau_transfer *tx = CALLOC_STRUCT(nouveau_transfer);
    if (!tx)
       return NULL;
    nouveau_buffer_transfer_init(tx, resource, box, usage);
