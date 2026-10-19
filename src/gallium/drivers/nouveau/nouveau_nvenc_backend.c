@@ -32,7 +32,7 @@
 #include "nouveau_nvenc_h264.h"
 
 #define NVENC_SLOTS 4
-#define NVENC_TIMEOUT_NS 5000000000ull
+#define NVENC_TIMEOUT_NS 1000000000ull
 
 enum slot_buffer {
    SLOT_PUSH,
@@ -46,8 +46,10 @@ enum slot_buffer {
 };
 
 enum shared_buffer {
-   SHARED_RECON_Y,
-   SHARED_RECON_UV,
+   SHARED_RECON_Y_0,
+   SHARED_RECON_UV_0,
+   SHARED_RECON_Y_1,
+   SHARED_RECON_UV_1,
    SHARED_HISTORY,
    SHARED_COLOC,
    SHARED_BUFFERS
@@ -65,6 +67,7 @@ struct slot {
    unsigned qp;
    unsigned generation;
    uint32_t seq;
+   bool is_p_frame;
    bool busy;
    bool stale;
 };
@@ -77,6 +80,8 @@ struct nvenc_backend {
    unsigned width, height, coded_width, coded_height, pitch, level;
    enum nvenc_profile profile;
    unsigned sequence, generation, frames;
+   unsigned recon_idx;
+   bool has_keyframe;
    bool allocated, poisoned;
    pthread_mutex_t mutex;
 };
@@ -94,7 +99,8 @@ slot_domain(unsigned index)
 static uint32_t
 shared_domain(unsigned index)
 {
-   return index == SHARED_RECON_Y || index == SHARED_RECON_UV
+   return (index == SHARED_RECON_Y_0 || index == SHARED_RECON_UV_0 ||
+           index == SHARED_RECON_Y_1 || index == SHARED_RECON_UV_1)
              ? NOUVEAU_GEM_DOMAIN_VRAM
              : NOUVEAU_GEM_DOMAIN_GART;
 }
@@ -203,6 +209,7 @@ make_config(struct nvenc_backend *s, struct slot *slot, unsigned qp)
       slot->config.md.intra_luma8x8_mode_enable = 0x1ff;
       slot->config.md.ip_search_mode |= 2;
    }
+   slot->config.slice.disable_deblocking_filter_idc = 0;
    slot->config_qp = qp;
    return 0;
 }
@@ -255,6 +262,8 @@ static int
 channel_reset(struct nvenc_backend *s)
 {
    s->generation++;
+   s->recon_idx = 0;
+   s->has_keyframe = false;
    for (unsigned i = 0; i < NVENC_SLOTS; i++)
       s->slots[i].busy = false;
    int ret = channel_close(s);
@@ -490,7 +499,8 @@ upload(const struct nvenc_backend *s, struct slot *slot, const uint8_t *y,
 
 static int
 push_frame(struct nvenc_backend *s, struct slot *slot,
-           const struct nvenc_surface *surface)
+           const struct nvenc_surface *surface,
+           unsigned out_recon, int ref_recon)
 {
    struct buffer *push = &slot->buffers[SLOT_PUSH];
    struct buffer *fence = &slot->buffers[SLOT_FENCE];
@@ -498,28 +508,32 @@ push_frame(struct nvenc_backend *s, struct slot *slot,
                                  : slot->buffers[SLOT_INPUT_Y].info.offset;
    const uint64_t chroma = surface ? surface->address + surface->chroma_offset
                                    : slot->buffers[SLOT_INPUT_UV].info.offset;
-   struct {
-      uint32_t method;
-      uint64_t address;
-   } addresses[] = {
-      {NVC7B7_SET_IN_DRV_PIC_SETUP, slot->buffers[SLOT_CONFIG].info.offset},
-      {NVC7B7_SET_IN_CUR_PIC, luma},
-      {NVC7B7_SET_IN_CUR_PIC_CHROMA_U, chroma},
-      {NVC7B7_SET_IN_CUR_PIC_CHROMA_V, chroma},
-      {NVC7B7_SET_OUT_REF_PIC_LUMA, s->shared[SHARED_RECON_Y].info.offset},
-      {NVC7B7_SET_OUT_REF_PIC_CHROMA, s->shared[SHARED_RECON_UV].info.offset},
-      {NVC7B7_SET_IOHISTORY, s->shared[SHARED_HISTORY].info.offset},
-      {NVC7B7_SET_OUT_ENC_STATUS, slot->buffers[SLOT_STATUS].info.offset},
-      {NVC7B7_SET_OUT_BITSTREAM, slot->buffers[SLOT_BITSTREAM].info.offset},
-      {NVC7B7_SET_OUT_COLOC_DATA, s->shared[SHARED_COLOC].info.offset},
-   };
+   const unsigned out_y = out_recon == 0 ? SHARED_RECON_Y_0 : SHARED_RECON_Y_1;
+   const unsigned out_uv = out_recon == 0 ? SHARED_RECON_UV_0 : SHARED_RECON_UV_1;
+
    uint32_t *cursor = push->map;
    method(&cursor, 0, NVC7B7_VIDEO_ENCODER);
    method(&cursor, NVC7B7_SET_APPLICATION_ID, 1);
    method(&cursor, NVC7B7_SET_CONTROL_PARAMS, 3);
    method(&cursor, NVC7B7_SET_PICTURE_INDEX, slot->seq);
-   for (unsigned i = 0; i < ARRAY_SIZE(addresses); i++)
-      method(&cursor, addresses[i].method, addresses[i].address >> 8);
+   method(&cursor, NVC7B7_SET_IN_DRV_PIC_SETUP, slot->buffers[SLOT_CONFIG].info.offset >> 8);
+   method(&cursor, NVC7B7_SET_IN_CUR_PIC, luma >> 8);
+   method(&cursor, NVC7B7_SET_IN_CUR_PIC_CHROMA_U, chroma >> 8);
+   method(&cursor, NVC7B7_SET_IN_CUR_PIC_CHROMA_V, chroma >> 8);
+   method(&cursor, NVC7B7_SET_OUT_REF_PIC_LUMA, s->shared[out_y].info.offset >> 8);
+   method(&cursor, NVC7B7_SET_OUT_REF_PIC_CHROMA, s->shared[out_uv].info.offset >> 8);
+   const unsigned r_y = ref_recon >= 0 ? (ref_recon == 0 ? SHARED_RECON_Y_0 : SHARED_RECON_Y_1) : out_y;
+   const unsigned r_uv = ref_recon >= 0 ? (ref_recon == 0 ? SHARED_RECON_UV_0 : SHARED_RECON_UV_1) : out_uv;
+   for (unsigned i = 0; i < 16; i++) {
+      method(&cursor, NVC7B7_SET_IN_REF_PIC0_LUMA + i * 4, s->shared[r_y].info.offset >> 8);
+      method(&cursor, NVC7B7_SET_IN_REF_PIC0_CHROMA + i * 4, s->shared[r_uv].info.offset >> 8);
+   }
+   method(&cursor, NVC7B7_SET_IOHISTORY, s->shared[SHARED_HISTORY].info.offset >> 8);
+   method(&cursor, NVC7B7_SET_OUT_ENC_STATUS, slot->buffers[SLOT_STATUS].info.offset >> 8);
+   method(&cursor, NVC7B7_SET_OUT_BITSTREAM, slot->buffers[SLOT_BITSTREAM].info.offset >> 8);
+   method(&cursor, NVC7B7_SET_IN_COLOC_DATA, s->shared[SHARED_COLOC].info.offset >> 8);
+   method(&cursor, NVC7B7_SET_IN_PARTITION_BUF, slot->buffers[SLOT_BITSTREAM].info.offset >> 8);
+   method(&cursor, NVC7B7_SET_OUT_COLOC_DATA, s->shared[SHARED_COLOC].info.offset >> 8);
    method(&cursor, NVC7B7_EXECUTE, 0);
    method(&cursor, NVC7B7_SEMAPHORE_A, fence->info.offset >> 32);
    method(&cursor, NVC7B7_SEMAPHORE_B, fence->info.offset);
@@ -531,7 +545,7 @@ push_frame(struct nvenc_backend *s, struct slot *slot,
       uint64_t offset;
       uint32_t domain;
       bool read_only;
-   } list[12];
+   } list[16];
    unsigned count = 0;
 #define ADD_BO(buf, dom, ro)                                                 \
    (list[count++] =                                                          \
@@ -548,8 +562,14 @@ push_frame(struct nvenc_backend *s, struct slot *slot,
    }
    ADD_BO(&slot->buffers[SLOT_STATUS], NOUVEAU_GEM_DOMAIN_GART, false);
    ADD_BO(&slot->buffers[SLOT_BITSTREAM], NOUVEAU_GEM_DOMAIN_GART, false);
-   ADD_BO(&s->shared[SHARED_RECON_Y], NOUVEAU_GEM_DOMAIN_VRAM, false);
-   ADD_BO(&s->shared[SHARED_RECON_UV], NOUVEAU_GEM_DOMAIN_VRAM, false);
+   ADD_BO(&s->shared[out_y], NOUVEAU_GEM_DOMAIN_VRAM, false);
+   ADD_BO(&s->shared[out_uv], NOUVEAU_GEM_DOMAIN_VRAM, false);
+   if (ref_recon >= 0) {
+      const unsigned ref_y = ref_recon == 0 ? SHARED_RECON_Y_0 : SHARED_RECON_Y_1;
+      const unsigned ref_uv = ref_recon == 0 ? SHARED_RECON_UV_0 : SHARED_RECON_UV_1;
+      ADD_BO(&s->shared[ref_y], NOUVEAU_GEM_DOMAIN_VRAM, true);
+      ADD_BO(&s->shared[ref_uv], NOUVEAU_GEM_DOMAIN_VRAM, true);
+   }
    ADD_BO(&s->shared[SHARED_HISTORY], NOUVEAU_GEM_DOMAIN_GART, false);
    ADD_BO(&s->shared[SHARED_COLOC], NOUVEAU_GEM_DOMAIN_GART, false);
 #undef ADD_BO
@@ -617,6 +637,7 @@ static int
 submit(struct nvenc_backend *s, const uint8_t *y, unsigned y_pitch,
        const uint8_t *uv, unsigned uv_pitch,
        const struct nvenc_surface *surface, unsigned qp,
+       bool is_p_frame,
        struct nvenc_ticket *ticket)
 {
    pthread_mutex_lock(&s->mutex);
@@ -647,7 +668,39 @@ submit(struct nvenc_backend *s, const uint8_t *y, unsigned y_pitch,
       upload(s, slot, y, y_pitch, uv, uv_pitch);
    }
 
+   if (!s->has_keyframe)
+      is_p_frame = false;
+
+   unsigned out_recon;
+   int ref_recon;
+   if (is_p_frame) {
+      ref_recon = s->recon_idx;
+      out_recon = 1 - s->recon_idx;
+      s->recon_idx = out_recon;
+   } else {
+      out_recon = 0;
+      ref_recon = -1;
+      s->recon_idx = 0;
+      s->has_keyframe = true;
+   }
+
    struct nouveau_nvenc_h264_config config = slot->config;
+   config.picture.pic_control.pic_type = 3;
+   config.picture.pic_control.pic_struct = 0;
+   config.picture.pic_control.ref_pic_flag = 1;
+   config.picture.pic_control.frame_num = 0;
+   config.picture.pic_control.idr_pic_id = s->frames & 0xffff;
+   for (unsigned i = 0; i < 8; i++) {
+      config.picture.pic_control.l0[i] = -1;
+      config.picture.pic_control.l1[i] = -1;
+   }
+   memset(config.picture.pic_control.temp_dist_l0, 0, 152);
+   config.slice.force_intra = 1;
+   config.slice.disable_deblocking_filter_idc = 0;
+   config.slice.qp_avr = qp;
+   config.slice.qp_slice_min = qp;
+   config.slice.qp_slice_max = qp;
+
    const unsigned fault_frame = debug_get_option_nvenc_fault_frame();
    if (fault_frame && ++s->frames == fault_frame) {
       mesa_logw("injecting fault on frame %u", s->frames);
@@ -655,16 +708,20 @@ submit(struct nvenc_backend *s, const uint8_t *y, unsigned y_pitch,
       memset(&config.md, 0, sizeof(config.md));
       memset(&config.quant, 0, sizeof(config.quant));
       memset(&config.slice, 0, sizeof(config.slice));
+   } else if (!fault_frame) {
+      s->frames++;
    }
+
    memcpy(slot->buffers[SLOT_CONFIG].map, &config, sizeof(config));
    memset(slot->buffers[SLOT_STATUS].map, 0xcd, 128);
    __atomic_store_n((uint32_t *)slot->buffers[SLOT_FENCE].map, 0,
                     __ATOMIC_RELEASE);
    slot->seq = ++s->sequence ? s->sequence : ++s->sequence;
    slot->qp = qp;
+   slot->is_p_frame = is_p_frame;
    slot->stale = false;
    slot->generation = s->generation;
-   ret = push_frame(s, slot, surface);
+   ret = push_frame(s, slot, surface, out_recon, ref_recon);
    if (ret) {
       channel_reset(s);
       goto done;
@@ -680,12 +737,13 @@ done:
 int
 nvenc_backend_submit(struct nvenc_backend *s, const uint8_t *y,
                      unsigned y_pitch, const uint8_t *uv, unsigned uv_pitch,
-                     unsigned qp, struct nvenc_ticket *ticket)
+                     unsigned qp, bool is_p_frame,
+                     struct nvenc_ticket *ticket)
 {
    if (!s || !y || !uv || !ticket || qp > 51 || y_pitch < s->width ||
        uv_pitch < s->width)
       return -EINVAL;
-   return submit(s, y, y_pitch, uv, uv_pitch, NULL, qp, ticket);
+   return submit(s, y, y_pitch, uv, uv_pitch, NULL, qp, is_p_frame, ticket);
 }
 
 unsigned
@@ -697,13 +755,14 @@ nvenc_backend_pitch(const struct nvenc_backend *s)
 int
 nvenc_backend_submit_surface(struct nvenc_backend *s,
                              const struct nvenc_surface *surface, unsigned qp,
+                             bool is_p_frame,
                              struct nvenc_ticket *ticket)
 {
    if (!s || !surface || !ticket || qp > 51 || !surface->handle ||
        surface->pitch != s->pitch || (surface->address & 0xff) ||
        (surface->luma_offset & 0xff) || (surface->chroma_offset & 0xff))
       return -EINVAL;
-   return submit(s, NULL, 0, NULL, 0, surface, qp, ticket);
+   return submit(s, NULL, 0, NULL, 0, surface, qp, is_p_frame, ticket);
 }
 
 int
@@ -742,6 +801,14 @@ nvenc_backend_collect(struct nvenc_backend *s,
       goto done;
    }
    if (!signalled) {
+      nvenc_pic_stat_s stat;
+      memcpy(&stat, slot->buffers[SLOT_STATUS].map, sizeof(stat));
+      uint32_t *dwords = (uint32_t *)slot->buffers[SLOT_STATUS].map;
+      mesa_loge("STATUS DUMP (32 dwords):");
+      for (int i = 0; i < 32; i += 4) {
+         mesa_loge("  [%02d..%02d]: 0x%08x 0x%08x 0x%08x 0x%08x",
+                   i, i + 3, dwords[i], dwords[i+1], dwords[i+2], dwords[i+3]);
+      }
       ret = -ETIMEDOUT;
       channel_reset(s);
       goto done;

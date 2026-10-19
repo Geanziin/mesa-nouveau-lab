@@ -109,7 +109,7 @@ nouveau_nvenc_h264_idr_config(struct nouveau_nvenc_h264_config *config,
    config->slice.qp_slice_min = qp;
    config->slice.qp_slice_max = qp;
    config->slice.force_intra = 1;
-   config->slice.disable_deblocking_filter_idc = 1;
+   config->slice.disable_deblocking_filter_idc = 0;
    config->md.intra_luma4x4_mode_enable = 0x1ff;
    config->md.intra_luma16x16_mode_enable = 0xf;
    config->md.intra_chroma_mode_enable = 0xf;

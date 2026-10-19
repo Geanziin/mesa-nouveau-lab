@@ -42,6 +42,7 @@ struct nvenc_codec {
    unsigned rc_target, rc_peak, rc_min_qp, rc_max_qp;
    int error;
    simple_mtx_t lock;
+   bool is_p_frame;
    struct list_head pending;
 };
 
@@ -163,6 +164,7 @@ begin_frame(struct pipe_video_codec *base, struct pipe_video_buffer *target,
    const struct pipe_h264_enc_rate_control *rate = &desc->rate_ctrl[0];
 
    codec->error = 0;
+   codec->is_p_frame = inter;
    codec->qp = inter ? desc->quant_p_frames : desc->quant_i_frames;
    if (target->buffer_format != PIPE_FORMAT_NV12 || target->interlaced ||
        (!inter && !intra) || codec->qp > 51 || picture->protected_playback)
@@ -175,7 +177,7 @@ begin_frame(struct pipe_video_codec *base, struct pipe_video_buffer *target,
       const unsigned min_qp =
          rate->app_requested_qp_range ? rate->min_qp : 10;
       const unsigned max_qp =
-         rate->app_requested_qp_range ? rate->max_qp : 51;
+         rate->app_requested_qp_range && rate->max_qp < 35 ? rate->max_qp : 35;
 
       if (!rate->target_bitrate) {
          codec->error = -EINVAL;
@@ -191,7 +193,7 @@ begin_frame(struct pipe_video_codec *base, struct pipe_video_buffer *target,
                        rate->target_bitrate, rate->peak_bitrate,
                        rate->frame_rate_num, rate->frame_rate_den,
                        rate->vbv_buffer_size, min_qp, max_qp,
-                       codec->qp ? codec->qp : 30);
+                       codec->qp ? codec->qp : 22);
          codec->rc_method = rate->rate_ctrl_method;
          codec->rc_target = rate->target_bitrate;
          codec->rc_peak = rate->peak_bitrate;
@@ -201,6 +203,10 @@ begin_frame(struct pipe_video_codec *base, struct pipe_video_buffer *target,
       codec->qp = nvenc_rc_qp(&codec->rc);
    } else {
       codec->rc_method = PIPE_H2645_ENC_RATE_CONTROL_METHOD_DISABLE;
+      if (codec->qp == 0)
+         codec->qp = 22;
+      else if (codec->qp > 35)
+         codec->qp = 35;
    }
 
    unsigned width = base->width, height = base->height;
@@ -369,7 +375,7 @@ encode_bitstream(struct pipe_video_codec *base,
          pipe->screen->fence_reference(pipe->screen, &fence, NULL);
       }
       feedback->error = nvenc_backend_submit_surface(
-         codec->backend, &surface, codec->qp, &feedback->ticket);
+         codec->backend, &surface, codec->qp, codec->is_p_frame, &feedback->ticket);
       return;
    }
 
@@ -385,7 +391,7 @@ encode_bitstream(struct pipe_video_codec *base,
 
    feedback->error = nvenc_backend_submit(
       codec->backend, maps[0], transfers[0]->stride, maps[1],
-      transfers[1]->stride, codec->qp, &feedback->ticket);
+      transfers[1]->stride, codec->qp, codec->is_p_frame, &feedback->ticket);
 
 unmap:
    for (unsigned i = 0; i < 2; i++) {

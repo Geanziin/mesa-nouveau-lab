@@ -19,7 +19,7 @@ const struct nvenc_overlay_run nvenc_overlay_runs[] = {
 	{ 0x1ce, 2, (const unsigned char[]){0xe8,0x03} },
 	{ 0x1d6, 1, (const unsigned char[]){0x40} },
 	{ 0x1fc, 1, (const unsigned char[]){0x00} },
-	{ 0x40b, 1, (const unsigned char[]){0x02} },
+	{ 0x40b, 1, (const unsigned char[]){0x00} },
 	{ 0x480, 3, (const unsigned char[]){0x02,0x40,0x07} },
 	{ 0x48c, 4, (const unsigned char[]){0xac,0x26,0xa0,0x29} },
 	{ 0x497, 3, (const unsigned char[]){0xa2,0xb6,0x01} },

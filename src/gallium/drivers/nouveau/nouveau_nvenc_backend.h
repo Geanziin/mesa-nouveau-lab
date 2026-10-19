@@ -5,6 +5,7 @@
 #ifndef NOUVEAU_NVENC_BACKEND_H
 #define NOUVEAU_NVENC_BACKEND_H
 
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 
@@ -51,10 +52,12 @@ int nvenc_backend_create(int fd, unsigned width, unsigned height, unsigned qp,
 int nvenc_backend_submit(struct nvenc_backend *s, const uint8_t *y,
                          unsigned y_pitch, const uint8_t *uv,
                          unsigned uv_pitch, unsigned qp,
+                         bool is_p_frame,
                          struct nvenc_ticket *ticket);
 int nvenc_backend_submit_surface(struct nvenc_backend *s,
                                  const struct nvenc_surface *surface,
-                                 unsigned qp, struct nvenc_ticket *ticket);
+                                 unsigned qp, bool is_p_frame,
+                                 struct nvenc_ticket *ticket);
 unsigned nvenc_backend_pitch(const struct nvenc_backend *s);
 int nvenc_backend_collect(struct nvenc_backend *s,
                           const struct nvenc_ticket *ticket, void *output,

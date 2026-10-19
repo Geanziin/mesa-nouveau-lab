@@ -5,7 +5,7 @@
 
 #include "nouveau_nvenc_rc.h"
 
-#define NVENC_RC_MAX_STEP 4
+#define NVENC_RC_MAX_STEP 2
 
 static int
 clamp_int(int v, int lo, int hi)
