@@ -31,6 +31,7 @@
 #include "nvc0/nvc0_context.h"
 
 #include "nv50_ir_driver.h"
+#include "nak.h"
 #include "nvc0/nve4_compute.h"
 
 /* NOTE: Using a[0x270] in FP may cause an error even if we're using less than
@@ -571,11 +572,130 @@ nvc0_program_dump(struct nvc0_program *prog)
 }
 #endif
 
+const struct nak_constant_offset_info nak_const_offsets_base __attribute__((weak)) = {
+   .sample_info_cb = 15,
+   .sample_locations_offset = 0,
+   .sample_masks_offset = 0,
+   .printf_cb = 0,
+   .printf_buffer_offset = 0,
+};
+
+const struct nak_constant_offset_info nak_const_offsets_turing_graphics __attribute__((weak)) = {
+   .sample_info_cb = 15,
+   .sample_locations_offset = 0,
+   .sample_masks_offset = 0,
+   .printf_cb = 0,
+   .printf_buffer_offset = 0,
+};
+
+static bool
+nvc0_nak_lower_load_ubo(nir_builder *b, nir_intrinsic_instr *load, void *data)
+{
+   if (load->intrinsic != nir_intrinsic_load_ubo)
+      return false;
+
+   b->cursor = nir_before_instr(&load->instr);
+
+   nir_def *index = load->src[0].ssa;
+   nir_def *offset = load->src[1].ssa;
+   const enum gl_access_qualifier access = nir_intrinsic_access(load);
+   const uint32_t align_mul = nir_intrinsic_align_mul(load);
+   const uint32_t align_offset = nir_intrinsic_align_offset(load);
+
+   nir_def *val = nir_ldc_nv(b, load->num_components, load->def.bit_size,
+                             index, offset, .access = access,
+                             .align_mul = align_mul,
+                             .align_offset = align_offset);
+   nir_def_rewrite_uses(&load->def, val);
+   return true;
+}
+
+static bool
+nvc0_program_translate_nak(struct nvc0_program *prog, struct nvc0_screen *screen,
+                           struct util_debug_callback *debug)
+{
+   if (!screen->nak)
+      return false;
+
+   nir_shader *nir = nir_shader_clone(NULL, prog->nir);
+   if (!nir)
+      return false;
+
+   struct nak_fs_key fs_key = { 0 };
+   if (prog->type == MESA_SHADER_FRAGMENT) {
+      fs_key.force_sample_shading = prog->fp.force_persample_interp;
+   }
+
+   nak_preprocess_nir(nir, screen->nak);
+   nir_shader_intrinsics_pass(nir, nvc0_nak_lower_load_ubo,
+                              nir_metadata_control_flow, NULL);
+   nak_lower_nir_before_linking(nir, screen->nak);
+   nir->info.io_lowered = true;
+
+   struct nak_shader_bin *bin =
+      nak_compile_shader(nir, false, screen->nak, 0,
+                         prog->type == MESA_SHADER_FRAGMENT ? &fs_key : NULL,
+                         false);
+   ralloc_free(nir);
+
+   if (!bin)
+      return false;
+
+   prog->code = malloc(bin->code_size);
+   if (!prog->code) {
+      nak_shader_bin_destroy(bin);
+      return false;
+   }
+   memcpy(prog->code, bin->code, bin->code_size);
+   prog->code_size = bin->code_size;
+
+   memcpy(prog->hdr, bin->info.hdr, sizeof(prog->hdr));
+   prog->num_gprs = MAX2(4, bin->info.num_gprs);
+   prog->num_barriers = bin->info.num_control_barriers;
+   prog->need_tls = (bin->info.slm_size > 0);
+
+   if (prog->type == MESA_SHADER_COMPUTE) {
+      prog->cp.smem_size = bin->info.cs.smem_size;
+   } else if (prog->type == MESA_SHADER_FRAGMENT) {
+      prog->fp.early_z = bin->info.fs.early_fragment_tests;
+      prog->fp.sample_mask_in = bin->info.fs.reads_sample_mask;
+      prog->fp.post_depth_coverage = bin->info.fs.post_depth_coverage;
+   } else {
+      prog->vp.clip_enable = bin->info.vtg.clip_enable;
+      prog->vp.cull_enable = bin->info.vtg.cull_enable;
+      prog->vp.need_vertex_id =
+         BITSET_TEST(prog->nir->info.system_values_read, SYSTEM_VALUE_VERTEX_ID);
+      prog->vp.need_draw_parameters =
+         BITSET_TEST(prog->nir->info.system_values_read, SYSTEM_VALUE_BASE_VERTEX) ||
+         BITSET_TEST(prog->nir->info.system_values_read, SYSTEM_VALUE_BASE_INSTANCE) ||
+         BITSET_TEST(prog->nir->info.system_values_read, SYSTEM_VALUE_DRAW_ID);
+      prog->vp.edgeflag = 0xff;
+
+      if (prog->stream_output.num_outputs) {
+         prog->tfb = MALLOC_STRUCT(nvc0_transform_feedback_state);
+         if (prog->tfb)
+            memcpy(prog->tfb, &bin->info.vtg.xfb, sizeof(*prog->tfb));
+      }
+   }
+
+   if (debug_get_bool_option("NVGD_DEBUG_NAK", false)) {
+      fprintf(stderr, "[nvgd/nak] compiled stage %d: %u bytes, %u GPRs\n",
+              prog->type, prog->code_size, prog->num_gprs);
+   }
+
+   nak_shader_bin_destroy(bin);
+   return true;
+}
+
 bool
-nvc0_program_translate(struct nvc0_program *prog, uint16_t chipset,
-                       struct disk_cache *disk_shader_cache,
+nvc0_program_translate(struct nvc0_program *prog, struct nvc0_screen *screen,
                        struct util_debug_callback *debug)
 {
+   if (screen->nak && nvc0_program_translate_nak(prog, screen, debug))
+      return true;
+
+   uint16_t chipset = screen->base.device->chipset;
+   struct disk_cache *disk_shader_cache = screen->base.disk_shader_cache;
    struct blob blob;
    size_t cache_size;
    struct nv50_ir_prog_info *info;

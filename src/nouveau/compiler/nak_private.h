@@ -97,8 +97,9 @@ static inline uint16_t
 nak_attribute_attr_addr(UNUSED const struct nak_compiler *nak,
                         gl_vert_attrib attrib)
 {
-   assert(attrib >= VERT_ATTRIB_GENERIC0);
-   return NAK_ATTR_GENERIC_START + (attrib - VERT_ATTRIB_GENERIC0) * 0x10;
+   if (attrib >= VERT_ATTRIB_GENERIC0)
+      return NAK_ATTR_GENERIC_START + (attrib - VERT_ATTRIB_GENERIC0) * 0x10;
+   return NAK_ATTR_GENERIC_START + attrib * 0x10;
 }
 
 uint16_t nak_varying_attr_addr(const struct nak_compiler *nak,
