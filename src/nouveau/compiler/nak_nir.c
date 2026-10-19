@@ -485,7 +485,7 @@ nak_fs_out_addr(gl_frag_result slot, uint32_t blend_idx)
       UNREACHABLE("EXT_shader_stencil_export not supported");
 
    case FRAG_RESULT_COLOR:
-      UNREACHABLE("Vulkan alway uses explicit locations");
+      return NAK_FS_OUT_COLOR(blend_idx);
 
    case FRAG_RESULT_SAMPLE_MASK:
       assert(blend_idx == 0);
@@ -493,7 +493,9 @@ nak_fs_out_addr(gl_frag_result slot, uint32_t blend_idx)
 
    default:
       assert(blend_idx < 2);
-      return NAK_FS_OUT_COLOR((slot - FRAG_RESULT_DATA0) + blend_idx);
+      if (slot >= FRAG_RESULT_DATA0)
+         return NAK_FS_OUT_COLOR((slot - FRAG_RESULT_DATA0) + blend_idx);
+      return NAK_FS_OUT_COLOR(blend_idx);
    }
 }
 
