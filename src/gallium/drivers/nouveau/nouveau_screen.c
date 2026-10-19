@@ -29,6 +29,7 @@
 #include "nouveau_fence.h"
 #include "nouveau_mm.h"
 #include "nouveau_buffer.h"
+#include "nv_object.xml.h"
 
 #include <compiler/glsl_types.h>
 
@@ -559,8 +560,9 @@ nouveau_context_init(struct nouveau_context *context, struct nouveau_screen *scr
    if (ret)
       return ret;
 
+   uint32_t push_size = (screen->class_3d >= NVE4_3D_CLASS) ? (2048 * 1024) : (512 * 1024);
    ret = nouveau_pushbuf_create(screen, context, context->client, screen->channel,
-                                4, 512 * 1024, &context->pushbuf);
+                                4, push_size, &context->pushbuf);
    if (ret)
       return ret;
 
