@@ -844,39 +844,8 @@ nvc0_screen_create(struct nouveau_device *dev)
       screen->base.vidmem_bindings = 0;
    }
 
-   const bool use_nak = debug_get_bool_option("NVGD_USE_NAK", true);
-   if (use_nak && dev->chipset >= 0x160) {
-      if (!dev->info.cls_eng3d)
-         dev->info.cls_eng3d = screen->eng3d->oclass;
-      if (!dev->info.cls_compute && screen->compute)
-         dev->info.cls_compute = screen->compute->oclass;
-      if (!dev->info.sm) {
-         if (dev->chipset >= 0x190)
-            dev->info.sm = 89;
-         else if (dev->chipset >= 0x172)
-            dev->info.sm = 86;
-         else if (dev->chipset >= 0x170)
-            dev->info.sm = 80;
-         else
-            dev->info.sm = 75;
-      }
-      if (!dev->info.max_warps_per_mp)
-         dev->info.max_warps_per_mp = (dev->info.sm >= 80) ? 48 : 32;
-
-      screen->nak = nak_compiler_create(&dev->info);
-   }
-
-   if (screen->nak) {
-      screen->nak_nir_opts = *nak_nir_options(screen->nak);
-      screen->nak_nir_opts.lower_uniforms_to_ubo = true;
-   }
-
-   for (unsigned i = 0; i <= MESA_SHADER_COMPUTE; i++) {
-      if (screen->nak)
-         pscreen->nir_options[i] = &screen->nak_nir_opts;
-      else
-         pscreen->nir_options[i] = nv50_ir_nir_shader_compiler_options(screen->base.device->chipset, i);
-   }
+   for (unsigned i = 0; i <= MESA_SHADER_COMPUTE; i++)
+      pscreen->nir_options[i] = nv50_ir_nir_shader_compiler_options(screen->base.device->chipset, i);
 
    pscreen->context_create = nvc0_create;
    pscreen->is_format_supported = nvc0_screen_is_format_supported;
@@ -1342,6 +1311,31 @@ nvc0_screen_create(struct nouveau_device *dev)
                                         screen->compute->oclass,
                                         screen->m2mf->oclass,
                                         screen->copy ? screen->copy->oclass : 0);
+
+   const bool use_nak = debug_get_bool_option("NVGD_USE_NAK", true);
+   if (use_nak && dev->chipset >= 0x160) {
+      if (!dev->info.sm) {
+         if (dev->chipset >= 0x190)
+            dev->info.sm = 89;
+         else if (dev->chipset >= 0x172)
+            dev->info.sm = 86;
+         else if (dev->chipset >= 0x170)
+            dev->info.sm = 80;
+         else
+            dev->info.sm = 75;
+      }
+      if (!dev->info.max_warps_per_mp)
+         dev->info.max_warps_per_mp = (dev->info.sm >= 80) ? 48 : 32;
+
+      screen->nak = nak_compiler_create(&dev->info);
+   }
+
+   if (screen->nak) {
+      screen->nak_nir_opts = *nak_nir_options(screen->nak);
+      screen->nak_nir_opts.lower_uniforms_to_ubo = true;
+      for (unsigned i = 0; i <= MESA_SHADER_COMPUTE; i++)
+         pscreen->nir_options[i] = &screen->nak_nir_opts;
+   }
 
    nvc0_init_shader_caps(screen);
    nvc0_init_compute_caps(screen);
