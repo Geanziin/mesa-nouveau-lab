@@ -203,8 +203,8 @@ nvc0_init_screen_caps(struct nvc0_screen *screen)
    caps->min_texture_gather_offset = -32;
    caps->max_texture_gather_offset = 31;
    caps->max_texel_buffer_elements = 128 * 1024 * 1024;
-   caps->glsl_feature_level = 430;
-   caps->glsl_feature_level_compatibility = 430;
+   caps->glsl_feature_level = 450;
+   caps->glsl_feature_level_compatibility = 450;
    caps->max_render_targets = 8;
    caps->max_dual_source_render_targets = 1;
    caps->viewport_subpixel_bits =
@@ -323,6 +323,7 @@ nvc0_init_screen_caps(struct nvc0_screen *screen)
    caps->int64 = true;
    caps->shader_clock = true;
    caps->compute = true;
+   caps->buffer_map_persistent_coherent = true;
    caps->prefer_real_buffer_in_constbuf0 = true;
    caps->can_bind_const_buffer_as_vertex = true;
    caps->query_so_overflow = true;
