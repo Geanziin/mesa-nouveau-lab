@@ -10,6 +10,7 @@
 
 #include "nvc0/nvc0_winsys.h"
 #include "nvc0/nvc0_stateobj.h"
+#include "util/slab.h"
 
 #define NVC0_TIC_MAX_ENTRIES 2048
 #define NVC0_TSC_MAX_ENTRIES 2048
@@ -127,6 +128,8 @@ struct nvc0_screen {
    struct nouveau_object *copy;
    struct nouveau_object *compute;
    struct nouveau_object *nvsw;
+
+   struct slab_parent_pool transfer_pool;
 };
 
 static inline struct nvc0_screen *

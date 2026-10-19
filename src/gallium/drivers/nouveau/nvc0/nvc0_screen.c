@@ -26,6 +26,7 @@
 #include "util/format/u_format.h"
 #include "util/format/u_format_s3tc.h"
 #include "util/u_screen.h"
+#include "util/u_threaded_context.h"
 #include "pipe/p_screen.h"
 
 #include "nouveau_vp3_video.h"
@@ -322,6 +323,7 @@ nvc0_init_screen_caps(struct nvc0_screen *screen)
    caps->int64 = true;
    caps->shader_clock = true;
    caps->compute = true;
+   caps->prefer_real_buffer_in_constbuf0 = true;
    caps->can_bind_const_buffer_as_vertex = true;
    caps->query_so_overflow = true;
    caps->image_atomic_inc_wrap = true;
@@ -462,6 +464,7 @@ nvc0_screen_destroy(struct pipe_screen *pscreen)
    nouveau_object_del(&screen->compute);
    nouveau_object_del(&screen->nvsw);
 
+   slab_destroy_parent(&screen->transfer_pool);
    nouveau_screen_fini(&screen->base);
    simple_mtx_destroy(&screen->state_lock);
 
@@ -1308,6 +1311,8 @@ nvc0_screen_create(struct nouveau_device *dev)
    nvc0_init_shader_caps(screen);
    nvc0_init_compute_caps(screen);
    nvc0_init_screen_caps(screen);
+
+   slab_create_parent(&screen->transfer_pool, sizeof(struct threaded_transfer), 64);
 
    return &screen->base;
 

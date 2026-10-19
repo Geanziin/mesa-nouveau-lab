@@ -24,6 +24,7 @@
 #include "util/u_draw.h"
 #include "util/u_framebuffer.h"
 #include "util/u_upload_mgr.h"
+#include "util/u_threaded_context.h"
 
 #include "nvc0/nvc0_context.h"
 #include "nvc0/nvc0_screen.h"
@@ -405,6 +406,27 @@ static void
 nvc0_context_get_sample_position(struct pipe_context *, unsigned, unsigned,
                                  float *);
 
+static void
+nvc0_replace_buffer_storage(struct pipe_context *ctx, struct pipe_resource *dst,
+                            struct pipe_resource *src, unsigned num_rebinds,
+                            uint64_t rebind_mask, uint32_t delete_buffer_id)
+{
+   struct nvc0_context *nvc0 = nvc0_context(ctx);
+   struct nv04_resource *sdst = nv04_resource(dst);
+   struct nv04_resource *ssrc = nv04_resource(src);
+
+   nouveau_bo_ref(ssrc->bo, &sdst->bo);
+   sdst->address = ssrc->address;
+   sdst->offset = ssrc->offset;
+   sdst->data = ssrc->data;
+   sdst->domain = ssrc->domain;
+   sdst->status = ssrc->status;
+   nouveau_fence_ref(ssrc->fence, &sdst->fence, &nvc0->screen->base);
+   nouveau_fence_ref(ssrc->fence_wr, &sdst->fence_wr, &nvc0->screen->base);
+
+   nvc0_invalidate_resource_storage(&nvc0->base, dst, 1);
+}
+
 struct pipe_context *
 nvc0_create(struct pipe_screen *pscreen, void *priv, unsigned ctxflags)
 {
@@ -557,7 +579,25 @@ nvc0_create(struct pipe_screen *pscreen, void *priv, unsigned ctxflags)
       nvc0->dirty_cp |= NVC0_NEW_CP_SAMPLERS;
    }
 
-   return pipe;
+   if (!(ctxflags & PIPE_CONTEXT_PREFER_THREADED))
+      return pipe;
+
+   if (ctxflags & PIPE_CONTEXT_COMPUTE_ONLY)
+      return pipe;
+
+   struct pipe_context *tc =
+      threaded_context_create(pipe,
+                              &screen->transfer_pool,
+                              nvc0_replace_buffer_storage,
+                              &(struct threaded_context_options){
+                                 .unsynchronized_get_device_reset_status = true,
+                              },
+                              &nvc0->tc);
+
+   if (tc && tc != pipe)
+      threaded_context_init_bytes_mapped_limit((struct threaded_context *)tc, 4);
+
+   return tc;
 
 out_err:
    if (nvc0) {

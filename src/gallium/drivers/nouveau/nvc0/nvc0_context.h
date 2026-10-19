@@ -284,6 +284,8 @@ struct nvc0_context {
    struct util_dynarray global_residents;
 
    uint64_t compute_invocations;
+
+   struct threaded_context *tc;
 };
 
 static inline struct nvc0_context *
