@@ -10,7 +10,8 @@ drm_fd_is_nouveau(int fd)
    if (!ver) {
       return false;
    }
-   const bool is_nouveau = !strncmp("nouveau", ver->name, ver->name_len);
+   const bool is_nouveau = !strncmp("nouveau", ver->name, ver->name_len) ||
+                           !strncmp("nvgd", ver->name, ver->name_len);
    drmFreeVersion(ver);
    return is_nouveau;
 }
