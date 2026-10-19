@@ -197,11 +197,12 @@ libnouveau = static_library(
     idep_nir_headers,
     idep_nouveau_codegen,
     idep_nvidia_headers,
+    idep_nak,
   ],
 )
 
 driver_nouveau = declare_dependency(
   compile_args : '-DGALLIUM_NOUVEAU',
-  dependencies : [idep_nir, idep_nouveau_codegen],
+  dependencies : [idep_nir, idep_nouveau_codegen, idep_nak],
   link_with : [libnouveau_codegen, libnouveau],
 )
