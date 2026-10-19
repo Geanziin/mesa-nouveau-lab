@@ -611,11 +611,53 @@ nvc0_nak_lower_load_ubo(nir_builder *b, nir_intrinsic_instr *load, void *data)
 }
 
 static bool
+nvc0_nir_is_supported_by_nak(const nir_shader *nir)
+{
+   nir_foreach_function_impl(impl, nir) {
+      nir_foreach_block(block, impl) {
+         nir_foreach_instr(instr, block) {
+            if (instr->type == nir_instr_type_tex)
+               return false;
+            if (instr->type == nir_instr_type_intrinsic) {
+               nir_intrinsic_instr *intrin = nir_instr_as_intrinsic(instr);
+               switch (intrin->intrinsic) {
+               case nir_intrinsic_image_deref_load:
+               case nir_intrinsic_image_deref_store:
+               case nir_intrinsic_image_deref_atomic:
+               case nir_intrinsic_image_deref_atomic_swap:
+               case nir_intrinsic_image_deref_size:
+               case nir_intrinsic_image_deref_samples:
+               case nir_intrinsic_image_load:
+               case nir_intrinsic_image_store:
+               case nir_intrinsic_image_atomic:
+               case nir_intrinsic_image_atomic_swap:
+               case nir_intrinsic_image_size:
+               case nir_intrinsic_image_samples:
+                  return false;
+               default:
+                  break;
+               }
+            }
+         }
+      }
+   }
+   return true;
+}
+
+static bool
 nvc0_program_translate_nak(struct nvc0_program *prog, struct nvc0_screen *screen,
                            struct util_debug_callback *debug)
 {
-   if (!screen->nak)
+   if (!screen->nak || !prog->nir)
       return false;
+
+   if (!nvc0_nir_is_supported_by_nak(prog->nir)) {
+      if (debug_get_bool_option("NVGD_DEBUG_NAK", false)) {
+         fprintf(stderr, "[nvgd/nak] stage %d unsupported (tex/image), falling back to nv50_ir\n",
+                 prog->type);
+      }
+      return false;
+   }
 
    nir_shader *nir = nir_shader_clone(NULL, prog->nir);
    if (!nir)
