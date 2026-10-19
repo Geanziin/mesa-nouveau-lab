@@ -10,9 +10,13 @@
 #include "nouveau_fence.h"
 #include "nouveau_buffer.h"
 #include "nouveau_mm.h"
+#include "util/u_threaded_context.h"
 
 struct nouveau_transfer {
-   struct pipe_transfer base;
+   union {
+      struct pipe_transfer base;
+      struct threaded_transfer tc_base;
+   };
 
    uint8_t *map;
    struct nouveau_bo *bo;

@@ -1,10 +1,14 @@
 
 #include "util/format/u_format.h"
+#include "util/u_threaded_context.h"
 
 #include "nvc0/nvc0_context.h"
 
 struct nvc0_transfer {
-   struct pipe_transfer base;
+   union {
+      struct pipe_transfer base;
+      struct threaded_transfer tc_base;
+   };
    struct nv50_m2mf_rect rect[2];
    uint32_t nblocksx;
    uint16_t nblocksy;
