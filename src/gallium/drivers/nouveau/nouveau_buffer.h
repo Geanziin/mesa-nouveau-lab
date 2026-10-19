@@ -5,6 +5,8 @@
 #include "util/u_transfer.h"
 #include "util/list.h"
 
+#include "util/u_threaded_context.h"
+
 struct pipe_resource;
 struct nouveau_context;
 struct nouveau_bo;
@@ -32,7 +34,10 @@ struct nouveau_bo;
  * and this bo should be added to the memory manager's validation list.
  */
 struct nv04_resource {
-   struct pipe_resource base;
+   union {
+      struct pipe_resource base;
+      struct threaded_resource tc_base;
+   };
 
    uint64_t address; /* virtual address (nv50+) */
 

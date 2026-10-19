@@ -144,6 +144,7 @@ nouveau_buffer_destroy(struct pipe_screen *pscreen,
 
    util_range_destroy(&res->valid_buffer_range);
 
+   threaded_resource_deinit(presource);
    FREE(res);
 
    NOUVEAU_DRV_STAT(nouveau_screen(pscreen), buf_obj_current_count, -1);
@@ -686,6 +687,7 @@ nouveau_buffer_create(struct pipe_screen *pscreen,
    buffer->base = *templ;
    pipe_reference_init(&buffer->base.reference, 1);
    buffer->base.screen = pscreen;
+   threaded_resource_init(&buffer->base, false);
 
    if (buffer->base.flags & (PIPE_RESOURCE_FLAG_MAP_PERSISTENT |
                              PIPE_RESOURCE_FLAG_MAP_COHERENT)) {
@@ -760,6 +762,7 @@ nouveau_buffer_create_from_user(struct pipe_screen *pscreen,
    buffer->base.screen = pscreen;
 
    pipe_reference_init(&buffer->base.reference, 1);
+   threaded_resource_init(&buffer->base, false);
 
    return &buffer->base;
 }
@@ -782,6 +785,7 @@ nouveau_user_buffer_create(struct pipe_screen *pscreen, void *ptr,
    buffer->base.width0 = bytes;
    buffer->base.height0 = 1;
    buffer->base.depth0 = 1;
+   threaded_resource_init(&buffer->base, false);
 
    buffer->data = ptr;
    buffer->status = NOUVEAU_BUFFER_STATUS_USER_MEMORY;

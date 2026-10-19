@@ -24,6 +24,7 @@
 #include "pipe/p_defines.h"
 #include "util/u_inlines.h"
 #include "util/format/u_format.h"
+#include "util/u_threaded_context.h"
 
 #include "nv50/nv50_context.h"
 #include "nv50/nv50_resource.h"
@@ -171,6 +172,7 @@ nv50_miptree_destroy(struct pipe_screen *pscreen, struct pipe_resource *pt)
    NOUVEAU_DRV_STAT(nouveau_screen(pscreen), tex_obj_current_bytes,
                     -(uint64_t)mt->total_size);
 
+   threaded_resource_deinit(pt);
    FREE(mt);
 }
 
@@ -344,6 +346,7 @@ nv50_miptree_create(struct pipe_screen *pscreen,
    *pt = *templ;
    pipe_reference_init(&pt->reference, 1);
    pt->screen = pscreen;
+   threaded_resource_init(pt, false);
 
    if (pt->bind & PIPE_BIND_LINEAR)
       pt->flags |= NOUVEAU_RESOURCE_FLAG_LINEAR;
@@ -443,6 +446,7 @@ nv50_miptree_from_handle(struct pipe_screen *pscreen,
    mt->base.base = *templ;
    pipe_reference_init(&mt->base.base.reference, 1);
    mt->base.base.screen = pscreen;
+   threaded_resource_init(&mt->base.base, false);
    mt->level[0].pitch = stride;
    unsigned tile_shift = mt->base.bo->config.nv50.memtype ?
       3 + ((mt->base.bo->config.nv50.tile_mode >> 4) & 0xf) : 0;

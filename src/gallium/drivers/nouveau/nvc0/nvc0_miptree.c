@@ -27,6 +27,7 @@
 #include "frontend/drm_driver.h"
 #include "util/u_inlines.h"
 #include "util/format/u_format.h"
+#include "util/u_threaded_context.h"
 
 #include "nvc0/nvc0_context.h"
 #include "nvc0/nvc0_resource.h"
@@ -461,6 +462,7 @@ nvc0_miptree_create(struct pipe_screen *pscreen,
    *pt = *templ;
    pipe_reference_init(&pt->reference, 1);
    pt->screen = pscreen;
+   threaded_resource_init(pt, false);
 
    if (pt->usage == PIPE_USAGE_STAGING) {
       /* PIPE_USAGE_STAGING, and usage in general, should not be specified when
