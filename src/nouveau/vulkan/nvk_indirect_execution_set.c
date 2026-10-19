@@ -387,7 +387,7 @@ nvk_UpdateIndirectExecutionSetPipelineEXT(
    }
 
    nvkmd_mem_sync_map_to_gpu(ies->mem, min_idx * (uint64_t)ies->stride_B,
-                             (max_idx + 1) * (uint64_t)ies->stride_B);
+                             (max_idx - min_idx + 1) * (uint64_t)ies->stride_B);
 }
 
 VKAPI_ATTR void VKAPI_CALL
@@ -414,5 +414,5 @@ nvk_UpdateIndirectExecutionSetShaderEXT(
    }
 
    nvkmd_mem_sync_map_to_gpu(ies->mem, min_idx * (uint64_t)ies->stride_B,
-                             (max_idx + 1) * (uint64_t)ies->stride_B);
+                             (max_idx - min_idx + 1) * (uint64_t)ies->stride_B);
 }
