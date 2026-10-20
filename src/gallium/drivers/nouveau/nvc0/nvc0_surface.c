@@ -264,12 +264,6 @@ nvc0_resource_copy_region(struct pipe_context *pipe,
       return;
    }
 
-   if (nvc0->screen->eng3d->oclass >= TU102_3D_CLASS) {
-      util_resource_copy_region(pipe, dst, dst_level, dstx, dsty, dstz,
-                                src, src_level, src_box);
-      return;
-   }
-
    assert(nv50_2d_dst_format_faithful(dst->format));
    assert(nv50_2d_src_format_faithful(src->format));
 
@@ -1501,15 +1495,6 @@ nvc0_blit_eng2d(struct nvc0_context *nvc0, const struct pipe_blit_info *info)
    nvc0_2d_texture_set(push, 1, dst, info->dst.level, dz, info->dst.format, b);
    nvc0_2d_texture_set(push, 0, src, info->src.level, sz, info->src.format, b);
 
-   if (info->scissor_enable && nvc0->screen->eng3d->oclass < TU102_3D_CLASS) {
-      BEGIN_NVC0(push, NVC0_2D(CLIP_X), 5);
-      PUSH_DATA (push, info->scissor.minx << dst->ms_x);
-      PUSH_DATA (push, info->scissor.miny << dst->ms_y);
-      PUSH_DATA (push, (info->scissor.maxx - info->scissor.minx) << dst->ms_x);
-      PUSH_DATA (push, (info->scissor.maxy - info->scissor.miny) << dst->ms_y);
-      PUSH_DATA (push, 1); /* enable */
-   }
-
    if (nvc0->cond_query && info->render_condition_enable)
       IMMED_NVC0(push, NVC0_2D(COND_MODE), nvc0->cond_condmode);
 
@@ -1639,12 +1624,55 @@ nvc0_blit_eng2d(struct nvc0_context *nvc0, const struct pipe_blit_info *info)
 
    nouveau_bufctx_reset(nvc0->bufctx, NVC0_BIND_2D);
 
-   if (info->scissor_enable && nvc0->screen->eng3d->oclass < TU102_3D_CLASS)
-      IMMED_NVC0(push, NVC0_2D(CLIP_ENABLE), 0);
    if (mask != 0xffffffff)
       IMMED_NVC0(push, NVC0_2D(OPERATION), NV50_2D_OPERATION_SRCCOPY);
    if (nvc0->cond_query && info->render_condition_enable)
       IMMED_NVC0(push, NVC0_2D(COND_MODE), NV50_2D_COND_MODE_ALWAYS);
+}
+
+static bool
+nvc0_blit_clip_scissor(struct pipe_blit_info *info)
+{
+   if (!info->scissor_enable)
+      return true;
+
+   int minx = MAX2(info->dst.box.x, (int)info->scissor.minx);
+   int maxx = MIN2(info->dst.box.x + info->dst.box.width, (int)info->scissor.maxx);
+   int miny = MAX2(info->dst.box.y, (int)info->scissor.miny);
+   int maxy = MIN2(info->dst.box.y + info->dst.box.height, (int)info->scissor.maxy);
+
+   if (maxx <= minx || maxy <= miny)
+      return false;
+
+   int dx0 = minx - info->dst.box.x;
+   int dy0 = miny - info->dst.box.y;
+   int new_w = maxx - minx;
+   int new_h = maxy - miny;
+
+   if (info->src.box.width == info->dst.box.width &&
+       info->src.box.height == info->dst.box.height) {
+      info->src.box.x += dx0;
+      info->src.box.y += dy0;
+      info->src.box.width = new_w;
+      info->src.box.height = new_h;
+      info->dst.box.x = minx;
+      info->dst.box.y = miny;
+      info->dst.box.width = new_w;
+      info->dst.box.height = new_h;
+      info->scissor_enable = false;
+   } else if (info->src.box.width == -info->dst.box.width &&
+              info->src.box.height == info->dst.box.height) {
+      info->src.box.x -= dx0;
+      info->src.box.y += dy0;
+      info->src.box.width = -new_w;
+      info->src.box.height = new_h;
+      info->dst.box.x = minx;
+      info->dst.box.y = miny;
+      info->dst.box.width = new_w;
+      info->dst.box.height = new_h;
+      info->scissor_enable = false;
+   }
+   return true;
 }
 
 static void
@@ -1652,7 +1680,12 @@ nvc0_blit(struct pipe_context *pipe, const struct pipe_blit_info *info)
 {
    struct nvc0_context *nvc0 = nvc0_context(pipe);
    struct nouveau_pushbuf *push = nvc0->base.pushbuf;
-   bool eng3d = nvc0->screen->eng3d->oclass >= TU102_3D_CLASS;
+   struct pipe_blit_info blit_info = *info;
+   bool eng3d = false;
+
+   if (!nvc0_blit_clip_scissor(&blit_info))
+      return;
+   info = &blit_info;
 
    if (info->src.box.width == 0 || info->src.box.height == 0 ||
        info->dst.box.width == 0 || info->dst.box.height == 0) {
