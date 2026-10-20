@@ -487,9 +487,10 @@ nouveau_ws_device_new(drmDevicePtr drm_device)
    if (!ver)
       goto out_err;
 
-   if (strncmp("nouveau", ver->name, ver->name_len) != 0) {
+   if (strncmp("nouveau", ver->name, ver->name_len) != 0 &&
+       strncmp("nvgd", ver->name, ver->name_len) != 0) {
       fprintf(stderr,
-              "DRM kernel driver '%.*s' in use. NVK requires nouveau.\n",
+              "DRM kernel driver '%.*s' in use. NVK requires nouveau or nvgd.\n",
               ver->name_len, ver->name);
       goto out_err;
    }

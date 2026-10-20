@@ -415,10 +415,15 @@ nvc0_replace_buffer_storage(struct pipe_context *ctx, struct pipe_resource *dst,
    struct nv04_resource *sdst = nv04_resource(dst);
    struct nv04_resource *ssrc = nv04_resource(src);
 
+   /* Release dst's old CPU data if allocated, then take ownership of src's data */
+   if (sdst->data && !(sdst->status & NOUVEAU_BUFFER_STATUS_USER_MEMORY))
+      align_free(sdst->data);
+   sdst->data = ssrc->data;
+   ssrc->data = NULL;
+
    nouveau_bo_ref(ssrc->bo, &sdst->bo);
    sdst->address = ssrc->address;
    sdst->offset = ssrc->offset;
-   sdst->data = ssrc->data;
    sdst->domain = ssrc->domain;
    sdst->status = ssrc->status;
    nouveau_fence_ref(ssrc->fence, &sdst->fence, &nvc0->screen->base);
@@ -578,6 +583,10 @@ nvc0_create(struct pipe_screen *pscreen, void *priv, unsigned ctxflags)
       nvc0->dirty_3d |= NVC0_NEW_3D_SAMPLERS;
       nvc0->dirty_cp |= NVC0_NEW_CP_SAMPLERS;
    }
+
+   const bool use_tc = debug_get_bool_option("NVGD_THREADED_CONTEXT", false);
+   if (!use_tc)
+      return pipe;
 
    if (!(ctxflags & PIPE_CONTEXT_PREFER_THREADED))
       return pipe;

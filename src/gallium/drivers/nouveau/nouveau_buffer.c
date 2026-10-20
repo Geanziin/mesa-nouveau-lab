@@ -136,8 +136,10 @@ nouveau_buffer_destroy(struct pipe_screen *pscreen,
 
    nouveau_buffer_release_gpu_storage(res);
 
-   if (res->data && !(res->status & NOUVEAU_BUFFER_STATUS_USER_MEMORY))
+   if (res->data && !(res->status & NOUVEAU_BUFFER_STATUS_USER_MEMORY)) {
       align_free(res->data);
+      res->data = NULL;
+   }
 
    nouveau_fence_ref(NULL, &res->fence, nouveau_screen(pscreen));
    nouveau_fence_ref(NULL, &res->fence_wr, nouveau_screen(pscreen));
@@ -837,6 +839,7 @@ nouveau_buffer_migrate(struct nouveau_context *nv,
          return ret;
       memcpy((uint8_t *)buf->bo->map + buf->offset, buf->data, size);
       align_free(buf->data);
+      buf->data = NULL;
    } else
    if (old_domain != 0 && new_domain != 0) {
       struct nouveau_mm_allocation *mm = buf->mm;

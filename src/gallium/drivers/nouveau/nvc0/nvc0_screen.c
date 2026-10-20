@@ -325,7 +325,6 @@ nvc0_init_screen_caps(struct nvc0_screen *screen)
    caps->shader_clock = true;
    caps->compute = true;
    caps->buffer_map_persistent_coherent = true;
-   caps->prefer_real_buffer_in_constbuf0 = true;
    caps->can_bind_const_buffer_as_vertex = true;
    caps->query_so_overflow = true;
    caps->image_atomic_inc_wrap = true;
@@ -1312,7 +1311,7 @@ nvc0_screen_create(struct nouveau_device *dev)
                                         screen->m2mf->oclass,
                                         screen->copy ? screen->copy->oclass : 0);
 
-   const bool use_nak = debug_get_bool_option("NVGD_USE_NAK", true);
+   const bool use_nak = debug_get_bool_option("NVGD_USE_NAK", false);
    if (use_nak && dev->chipset >= 0x160) {
       if (!dev->info.sm) {
          if (dev->chipset >= 0x190)

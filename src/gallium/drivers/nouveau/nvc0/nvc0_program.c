@@ -611,13 +611,56 @@ nvc0_nak_lower_load_ubo(nir_builder *b, nir_intrinsic_instr *load, void *data)
 }
 
 static bool
+nvc0_nak_lower_tex(nir_builder *b, nir_instr *instr, void *data)
+{
+   if (instr->type != nir_instr_type_tex)
+      return false;
+
+   nir_tex_instr *tex = nir_instr_as_tex(instr);
+   b->cursor = nir_before_instr(&tex->instr);
+
+   if (nir_tex_instr_src_index(tex, nir_tex_src_texture_handle) >= 0)
+      return false;
+
+   const uint32_t cb_slot = (b->shader->info.stage == MESA_SHADER_COMPUTE) ? 7 : 15;
+   nir_def *tex_idx = nir_imm_int(b, tex->texture_index);
+
+   int off_idx = nir_tex_instr_src_index(tex, nir_tex_src_texture_offset);
+   if (off_idx >= 0) {
+      tex_idx = nir_iadd(b, tex_idx, tex->src[off_idx].src.ssa);
+      nir_tex_instr_remove_src(tex, off_idx);
+   }
+
+   /* CB offset: NVC0_CB_AUX_TEX_INFO(i) = 0x20 + i * 4 */
+   nir_def *byte_offset = nir_iadd_imm(b, nir_ishl_imm(b, tex_idx, 2), 0x20);
+
+   /* Load the 32-bit hardware texture handle from CB 15 (or 7 for compute) */
+   nir_def *handle = nir_ldc_nv(b, 1, 32, nir_imm_int(b, cb_slot), byte_offset);
+
+   /* If sampler is specified separately and differs from texture index */
+   if (tex->sampler_index != tex->texture_index) {
+      nir_def *samp_idx = nir_imm_int(b, tex->sampler_index);
+      int samp_off_idx = nir_tex_instr_src_index(tex, nir_tex_src_sampler_offset);
+      if (samp_off_idx >= 0) {
+         samp_idx = nir_iadd(b, samp_idx, tex->src[samp_off_idx].src.ssa);
+         nir_tex_instr_remove_src(tex, samp_off_idx);
+      }
+      nir_def *samp_byte_offset = nir_iadd_imm(b, nir_ishl_imm(b, samp_idx, 2), 0x20);
+      nir_def *samp_handle = nir_ldc_nv(b, 1, 32, nir_imm_int(b, cb_slot), samp_byte_offset);
+      handle = nir_ior(b, nir_iand_imm(b, handle, 0x000fffff),
+                          nir_iand_imm(b, samp_handle, 0xfff00000));
+   }
+
+   nir_tex_instr_add_src(tex, nir_tex_src_texture_handle, handle);
+   return true;
+}
+
+static bool
 nvc0_nir_is_supported_by_nak(const nir_shader *nir)
 {
    nir_foreach_function_impl(impl, nir) {
       nir_foreach_block(block, impl) {
          nir_foreach_instr(instr, block) {
-            if (instr->type == nir_instr_type_tex)
-               return false;
             if (instr->type == nir_instr_type_intrinsic) {
                nir_intrinsic_instr *intrin = nir_instr_as_intrinsic(instr);
                switch (intrin->intrinsic) {
@@ -653,7 +696,7 @@ nvc0_program_translate_nak(struct nvc0_program *prog, struct nvc0_screen *screen
 
    if (!nvc0_nir_is_supported_by_nak(prog->nir)) {
       if (debug_get_bool_option("NVGD_DEBUG_NAK", false)) {
-         fprintf(stderr, "[nvgd/nak] stage %d unsupported (tex/image), falling back to nv50_ir\n",
+         fprintf(stderr, "[nvgd/nak] stage %d unsupported (image), falling back to nv50_ir\n",
                  prog->type);
       }
       return false;
@@ -668,6 +711,8 @@ nvc0_program_translate_nak(struct nvc0_program *prog, struct nvc0_screen *screen
       fs_key.force_sample_shading = prog->fp.force_persample_interp;
    }
 
+   nir_shader_instructions_pass(nir, nvc0_nak_lower_tex,
+                                nir_metadata_control_flow, NULL);
    nak_preprocess_nir(nir, screen->nak);
    nir_shader_intrinsics_pass(nir, nvc0_nak_lower_load_ubo,
                               nir_metadata_control_flow, NULL);
