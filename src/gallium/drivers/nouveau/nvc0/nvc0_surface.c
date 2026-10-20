@@ -264,6 +264,12 @@ nvc0_resource_copy_region(struct pipe_context *pipe,
       return;
    }
 
+   if (nvc0->screen->eng3d->oclass >= TU102_3D_CLASS) {
+      util_resource_copy_region(pipe, dst, dst_level, dstx, dsty, dstz,
+                                src, src_level, src_box);
+      return;
+   }
+
    assert(nv50_2d_dst_format_faithful(dst->format));
    assert(nv50_2d_src_format_faithful(src->format));
 
@@ -1495,7 +1501,7 @@ nvc0_blit_eng2d(struct nvc0_context *nvc0, const struct pipe_blit_info *info)
    nvc0_2d_texture_set(push, 1, dst, info->dst.level, dz, info->dst.format, b);
    nvc0_2d_texture_set(push, 0, src, info->src.level, sz, info->src.format, b);
 
-   if (info->scissor_enable) {
+   if (info->scissor_enable && nvc0->screen->eng3d->oclass < TU102_3D_CLASS) {
       BEGIN_NVC0(push, NVC0_2D(CLIP_X), 5);
       PUSH_DATA (push, info->scissor.minx << dst->ms_x);
       PUSH_DATA (push, info->scissor.miny << dst->ms_y);
@@ -1633,7 +1639,7 @@ nvc0_blit_eng2d(struct nvc0_context *nvc0, const struct pipe_blit_info *info)
 
    nouveau_bufctx_reset(nvc0->bufctx, NVC0_BIND_2D);
 
-   if (info->scissor_enable)
+   if (info->scissor_enable && nvc0->screen->eng3d->oclass < TU102_3D_CLASS)
       IMMED_NVC0(push, NVC0_2D(CLIP_ENABLE), 0);
    if (mask != 0xffffffff)
       IMMED_NVC0(push, NVC0_2D(OPERATION), NV50_2D_OPERATION_SRCCOPY);
@@ -1646,7 +1652,7 @@ nvc0_blit(struct pipe_context *pipe, const struct pipe_blit_info *info)
 {
    struct nvc0_context *nvc0 = nvc0_context(pipe);
    struct nouveau_pushbuf *push = nvc0->base.pushbuf;
-   bool eng3d = false;
+   bool eng3d = nvc0->screen->eng3d->oclass >= TU102_3D_CLASS;
 
    if (info->src.box.width == 0 || info->src.box.height == 0 ||
        info->dst.box.width == 0 || info->dst.box.height == 0) {

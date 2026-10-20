@@ -146,6 +146,17 @@ iris_predicate(int fd, const char *driver)
    return ret;
 }
 
+bool
+nvgd_predicate(int fd, const char *driver)
+{
+   char *kernel_driver = loader_get_kernel_driver_name(fd);
+   bool ret = kernel_driver &&
+              (strcmp(kernel_driver, "nvgd") == 0 || strcmp(kernel_driver, "nouveau") == 0);
+
+   free(kernel_driver);
+   return ret;
+}
+
 /* choose zink or nouveau GL */
 bool
 nouveau_zink_predicate(int fd, const char *driver)
@@ -157,51 +168,12 @@ nouveau_zink_predicate(int fd, const char *driver)
    if (!drm_fd_is_nouveau(fd))
       return false;
 
-   bool prefer_zink = false;
-   bool require_zink = false;
+   bool prefer_zink = debug_get_bool_option("NOUVEAU_USE_ZINK", false);
 
-   /* Enable Zink by default on Turing and later GPUs
-    *
-    * We only use Zink if if the kernel supports VMA_TILEMODE, which is needed
-    * for DRM format modifiers.  This also doubles as a check for a new enough
-    * kernel to run NVK in general.
-    */
-   struct drm_nouveau_getparam r = { .param = NOUVEAU_GETPARAM_HAS_VMA_TILEMODE };
-   int ret = drmCommandWriteRead(fd, DRM_NOUVEAU_GETPARAM, &r, sizeof(r));
-   if (ret == 0 && r.value == 1) {
-      r.param = NOUVEAU_GETPARAM_CHIPSET_ID;
-      r.value = 0;
-      ret = drmCommandWriteRead(fd, DRM_NOUVEAU_GETPARAM, &r, sizeof(r));
-      /* Do not prefer Zink: use direct hardware NVGD OpenGL driver */
-      prefer_zink = false;
-      /* Nouveau GL isn't enabled on anything after Ada */
-      if (ret == 0 && r.value >= 0x1a0) {
-         require_zink = true;
-      }
-   }
-   assert(!require_zink || prefer_zink);
-
-   prefer_zink = debug_get_bool_option("NOUVEAU_USE_ZINK", prefer_zink);
-
-   bool use_zink = prefer_zink;
-   if (require_zink) {
-      /* nouveau_zink_predicate() typically gets called twice but we only want
-       * to warn once.
-       */
-      static bool warned = false;
-      if (!prefer_zink && !warned) {
-         log_(_LOADER_WARNING,
-              "NOUVEAU_USE_ZINK is ignored for Blackwell and later GPUs.\n");
-         warned = true;
-      }
-
-      use_zink = true;
-   }
-
-   if (use_zink && !strcmp(driver, "zink"))
+   if (prefer_zink && !strcmp(driver, "zink"))
       return true;
 
-   if (!use_zink && (!strcmp(driver, "nvgd") || !strcmp(driver, "nouveau")))
+   if (!prefer_zink && (!strcmp(driver, "nvgd") || !strcmp(driver, "nouveau")))
       return true;
    return false;
 #endif

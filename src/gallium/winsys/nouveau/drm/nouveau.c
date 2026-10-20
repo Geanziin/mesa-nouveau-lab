@@ -1120,8 +1120,19 @@ pushbuf_dump(struct nouveau_device *dev,
 
    kpsh = krec->push;
    for (i = 0; i < krec->nr_push; i++, kpsh++) {
+      if (kpsh->bo_index >= krec->nr_buffer) {
+         err("ch%d: invalid bo_index %d (nr_buffer %d)\n", chid, kpsh->bo_index, krec->nr_buffer);
+         continue;
+      }
       kref = krec->buffer + kpsh->bo_index;
       bo = (void *)(unsigned long)kref->user_priv;
+      if (!bo || !bo->map) {
+         err("ch%d: psh %s%08x %010llx %010llx (unmapped or null bo)\n", chid,
+             (bo && bo->map) ? "" : "(unmapped) ", kpsh->bo_index,
+             (unsigned long long)kpsh->offset,
+             (unsigned long long)(kpsh->offset + kpsh->length));
+         continue;
+      }
       bgn = (uint32_t *)((char *)bo->map + kpsh->offset);
       end = bgn + ((kpsh->length & 0x7fffff) /4);
 
