@@ -13,6 +13,7 @@
 
 #include "util/os_mman.h"
 #include "util/os_time.h"
+#include "util/u_debug.h"
 
 #include <stdio.h>
 #include <errno.h>
@@ -505,6 +506,8 @@ nouveau_screen_init(struct nouveau_screen *screen, struct nouveau_device *dev)
 
    memset(&mm_config, 0, sizeof(mm_config));
    nouveau_fence_list_init(&screen->fence);
+   screen->fence_spin_ns =
+      debug_get_num_option("NVGD_FENCE_SPIN_US", 200) * 1000;
 
    screen->mm_GART = nouveau_mm_create(dev,
                                        NOUVEAU_BO_GART | NOUVEAU_BO_MAP,
@@ -532,6 +535,8 @@ nouveau_screen_fini(struct nouveau_screen *screen)
    nouveau_mm_destroy(screen->mm_VRAM);
 
    nouveau_pushbuf_destroy(&screen->pushbuf);
+
+   nouveau_fence_list_release_bos(&screen->fence);
 
    nouveau_client_del(&screen->client);
    nouveau_object_del(&screen->channel);

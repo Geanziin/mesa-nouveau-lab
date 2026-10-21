@@ -616,7 +616,8 @@ static u32
 nvc0_screen_fence_update(struct pipe_screen *pscreen)
 {
    struct nvc0_screen *screen = nvc0_screen(pscreen);
-   return screen->fence.map[0];
+   /* written by the GPU behind our back; may be polled in a loop */
+   return p_atomic_read((volatile uint32_t *)&screen->fence.map[0]);
 }
 
 static int

@@ -69,6 +69,8 @@ struct nouveau_screen {
    bool has_svm;
    bool is_uma;
    bool disable_fences;
+   /* busy-poll budget before a kernel fence wait (NVGD_FENCE_SPIN_US) */
+   int64_t fence_spin_ns;
    void *svm_cutout;
    size_t svm_cutout_size;
 

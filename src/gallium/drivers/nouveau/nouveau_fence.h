@@ -40,19 +40,33 @@ struct nouveau_fence_list {
    simple_mtx_t lock;
    void (*emit)(struct pipe_context *, uint32_t *sequence, struct nouveau_bo *wait);
    uint32_t (*update)(struct pipe_screen *);
+
+   /* Idle per-fence wait BOs kept for reuse.  Every flush creates the next
+    * fence, and allocating its 4 KiB BO costs a GEM_NEW + GEM_CLOSE ioctl
+    * pair per frame. */
+#define NOUVEAU_FENCE_BO_CACHE_SIZE 32
+   simple_mtx_t bo_cache_lock;
+   unsigned bo_cache_count;
+   struct nouveau_bo *bo_cache[NOUVEAU_FENCE_BO_CACHE_SIZE];
 };
 
 static inline void
 nouveau_fence_list_init(struct nouveau_fence_list *fence_list)
 {
    simple_mtx_init(&fence_list->lock, mtx_plain);
+   simple_mtx_init(&fence_list->bo_cache_lock, mtx_plain);
+   fence_list->bo_cache_count = 0;
 }
 
 static inline void
 nouveau_fence_list_destroy(struct nouveau_fence_list *fence_list)
 {
+   simple_mtx_destroy(&fence_list->bo_cache_lock);
    simple_mtx_destroy(&fence_list->lock);
 }
+
+/* drop the cached fence BOs; must run before the device is destroyed */
+void nouveau_fence_list_release_bos(struct nouveau_fence_list *fence_list);
 
 /* unlocked versions, use with care */
 

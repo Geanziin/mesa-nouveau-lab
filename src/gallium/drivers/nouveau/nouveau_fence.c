@@ -25,6 +25,17 @@
 #include "nouveau_winsys.h"
 #include "nouveau_fence.h"
 #include "util/os_time.h"
+#include "util/u_atomic.h"
+
+static inline void
+nouveau_cpu_relax(void)
+{
+#if defined(__x86_64__) || defined(__i386__)
+   __builtin_ia32_pause();
+#elif defined(__aarch64__)
+   __asm__ volatile("yield");
+#endif
+}
 
 #if DETECT_OS_POSIX
 #include <sched.h>
@@ -40,10 +51,20 @@ nouveau_fence_new(struct nouveau_context *nv, struct nouveau_fence **fence)
    if (!new_fence)
       return false;
 
-   int ret = nouveau_bo_new(nv->screen->device, NOUVEAU_BO_GART, 0x1000, 0x1000, NULL, &new_fence->bo);
-   if (ret) {
-      FREE(new_fence);
-      return false;
+   struct nouveau_fence_list *fence_list = &nv->screen->fence;
+
+   simple_mtx_lock(&fence_list->bo_cache_lock);
+   if (fence_list->bo_cache_count)
+      new_fence->bo = fence_list->bo_cache[--fence_list->bo_cache_count];
+   simple_mtx_unlock(&fence_list->bo_cache_lock);
+
+   if (!new_fence->bo) {
+      int ret = nouveau_bo_new(nv->screen->device, NOUVEAU_BO_GART, 0x1000,
+                               0x1000, NULL, &new_fence->bo);
+      if (ret) {
+         FREE(new_fence);
+         return false;
+      }
    }
 
    new_fence->screen = nv->screen;
@@ -126,8 +147,30 @@ nouveau_fence_del(struct nouveau_fence *fence)
       nouveau_fence_trigger_work(fence);
    }
 
+   /* The BO only carries the kernel fence used by nouveau_fence_wait().  Once
+    * the fence signalled (or was never emitted) it is idle and no pushbuf
+    * still references it, so it can back a later fence. */
+   if (fence->bo && (fence->state == NOUVEAU_FENCE_STATE_SIGNALLED ||
+                     fence->state == NOUVEAU_FENCE_STATE_AVAILABLE)) {
+      simple_mtx_lock(&fence_list->bo_cache_lock);
+      if (fence_list->bo_cache_count < NOUVEAU_FENCE_BO_CACHE_SIZE) {
+         fence_list->bo_cache[fence_list->bo_cache_count++] = fence->bo;
+         fence->bo = NULL;
+      }
+      simple_mtx_unlock(&fence_list->bo_cache_lock);
+   }
+
    nouveau_bo_ref(NULL, &fence->bo);
    FREE(fence);
+}
+
+void
+nouveau_fence_list_release_bos(struct nouveau_fence_list *fence_list)
+{
+   simple_mtx_lock(&fence_list->bo_cache_lock);
+   while (fence_list->bo_cache_count)
+      nouveau_bo_ref(NULL, &fence_list->bo_cache[--fence_list->bo_cache_count]);
+   simple_mtx_unlock(&fence_list->bo_cache_lock);
 }
 
 void
@@ -258,6 +301,20 @@ _nouveau_fence_wait(struct nouveau_fence *fence, struct util_debug_callback *deb
 
    if (!nouveau_fence_kick(fence))
       return false;
+
+   /* Poll the sequence the GPU writes to the coherent fence page before
+    * sleeping in the kernel.  Most waits (glFinish, buffer maps, throttling)
+    * complete within microseconds, while the kernel path adds an interrupt,
+    * a fence worker and a wake-up on top of the GPU time. */
+   if (fence->state < NOUVEAU_FENCE_STATE_SIGNALLED && screen->fence_spin_ns) {
+      const int64_t until = os_time_get_nano() + screen->fence_spin_ns;
+      do {
+         for (unsigned i = 0; i < 64; i++)
+            nouveau_cpu_relax();
+         _nouveau_fence_update(screen, false);
+      } while (fence->state < NOUVEAU_FENCE_STATE_SIGNALLED &&
+               os_time_get_nano() < until);
+   }
 
    if (fence->state < NOUVEAU_FENCE_STATE_SIGNALLED) {
       NOUVEAU_DRV_STAT(screen, any_non_kernel_fence_sync_count, 1);
