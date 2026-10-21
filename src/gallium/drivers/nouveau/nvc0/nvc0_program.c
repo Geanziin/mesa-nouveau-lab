@@ -589,6 +589,28 @@ const struct nak_constant_offset_info nak_const_offsets_turing_graphics __attrib
 };
 
 static bool
+nvc0_nak_remap_vs_input(nir_builder *b, nir_intrinsic_instr *intrin, void *data)
+{
+   if (intrin->intrinsic != nir_intrinsic_load_input)
+      return false;
+
+   /* Gallium packs the enabled vertex elements densely: element i is
+    * fetched into attribute 0x80 + i * 0x10 (see nvc0_vp_assign_input_slots
+    * and nv50_ir's assignSlots, which use driver_location).  NAK addresses
+    * vertex inputs by their GL location, which is sparse whenever the
+    * application binds attributes to non-contiguous locations, so remap the
+    * semantic to the packed index before NAK assigns addresses. */
+   nir_io_semantics sem = nir_intrinsic_io_semantics(intrin);
+   const unsigned location = VERT_ATTRIB_GENERIC0 + nir_intrinsic_base(intrin);
+   if (sem.location == location)
+      return false;
+
+   sem.location = location;
+   nir_intrinsic_set_io_semantics(intrin, sem);
+   return true;
+}
+
+static bool
 nvc0_nak_lower_load_ubo(nir_builder *b, nir_intrinsic_instr *load, void *data)
 {
    if (load->intrinsic != nir_intrinsic_load_ubo)
@@ -656,8 +678,60 @@ nvc0_nak_lower_tex(nir_builder *b, nir_instr *instr, void *data)
 }
 
 static bool
+nvc0_nak_is_legacy_varying(unsigned slot)
+{
+   switch (slot) {
+   case VARYING_SLOT_COL0:
+   case VARYING_SLOT_COL1:
+   case VARYING_SLOT_BFC0:
+   case VARYING_SLOT_BFC1:
+   case VARYING_SLOT_FOGC:
+   case VARYING_SLOT_CLIP_VERTEX:
+      return true;
+   default:
+      return slot >= VARYING_SLOT_TEX0 && slot <= VARYING_SLOT_TEX7;
+   }
+}
+
+/* NAK cannot describe the fixed-function color attributes (0x280-0x2bf) or
+ * the legacy texcoord/fog/clip-vertex slots in the shader header, so
+ * compatibility-profile shaders using them (glBegin/glColor/gl_TexCoord, as
+ * used by gsr-ui's mgl) stay on nv50_ir.  Generic varyings use 0x80 + 0x10 * n
+ * in both compilers, so a NAK stage can still link with an nv50_ir stage. */
+static bool
+nvc0_nir_uses_legacy_varyings(const nir_shader *nir)
+{
+   const uint64_t legacy =
+      VARYING_BIT_COL0 | VARYING_BIT_COL1 | VARYING_BIT_BFC0 |
+      VARYING_BIT_BFC1 | VARYING_BIT_FOGC | VARYING_BIT_CLIP_VERTEX |
+      BITFIELD64_RANGE(VARYING_SLOT_TEX0, 8);
+
+   if (nir->info.stage != MESA_SHADER_FRAGMENT &&
+       (nir->info.outputs_written & legacy))
+      return true;
+   if (nir->info.stage != MESA_SHADER_VERTEX && (nir->info.inputs_read & legacy))
+      return true;
+
+   nir_foreach_variable_with_modes(var, nir, nir_var_shader_out) {
+      if (nir->info.stage != MESA_SHADER_FRAGMENT &&
+          nvc0_nak_is_legacy_varying(var->data.location))
+         return true;
+   }
+   if (nir->info.stage != MESA_SHADER_VERTEX) {
+      nir_foreach_variable_with_modes(var, nir, nir_var_shader_in) {
+         if (nvc0_nak_is_legacy_varying(var->data.location))
+            return true;
+      }
+   }
+   return false;
+}
+
+static bool
 nvc0_nir_is_supported_by_nak(const nir_shader *nir)
 {
+   if (nvc0_nir_uses_legacy_varyings(nir))
+      return false;
+
    nir_foreach_function_impl(impl, nir) {
       nir_foreach_block(block, impl) {
          nir_foreach_instr(instr, block) {
@@ -676,6 +750,13 @@ nvc0_nir_is_supported_by_nak(const nir_shader *nir)
                case nir_intrinsic_image_atomic_swap:
                case nir_intrinsic_image_size:
                case nir_intrinsic_image_samples:
+               /* SSBOs (and atomic counters lowered to them) are bound
+                * through the aux constbuf, which only nv50_ir lowers */
+               case nir_intrinsic_load_ssbo:
+               case nir_intrinsic_store_ssbo:
+               case nir_intrinsic_ssbo_atomic:
+               case nir_intrinsic_ssbo_atomic_swap:
+               case nir_intrinsic_get_ssbo_size:
                   return false;
                default:
                   break;
@@ -696,7 +777,7 @@ nvc0_program_translate_nak(struct nvc0_program *prog, struct nvc0_screen *screen
 
    if (!nvc0_nir_is_supported_by_nak(prog->nir)) {
       if (debug_get_bool_option("NVGD_DEBUG_NAK", false)) {
-         fprintf(stderr, "[nvgd/nak] stage %d unsupported (image), falling back to nv50_ir\n",
+         fprintf(stderr, "[nvgd/nak] stage %d unsupported (images, SSBOs or legacy varyings), falling back to nv50_ir\n",
                  prog->type);
       }
       return false;
@@ -705,6 +786,7 @@ nvc0_program_translate_nak(struct nvc0_program *prog, struct nvc0_screen *screen
    nir_shader *nir = nir_shader_clone(NULL, prog->nir);
    if (!nir)
       return false;
+   nir->options = &screen->nak_nir_opts;
 
    struct nak_fs_key fs_key = { 0 };
    if (prog->type == MESA_SHADER_FRAGMENT) {
@@ -717,6 +799,9 @@ nvc0_program_translate_nak(struct nvc0_program *prog, struct nvc0_screen *screen
    nir_shader_intrinsics_pass(nir, nvc0_nak_lower_load_ubo,
                               nir_metadata_control_flow, NULL);
    nak_lower_nir_before_linking(nir, screen->nak);
+   if (nir->info.stage == MESA_SHADER_VERTEX)
+      nir_shader_intrinsics_pass(nir, nvc0_nak_remap_vs_input,
+                                 nir_metadata_control_flow, NULL);
    nir->info.io_lowered = true;
 
    struct nak_shader_bin *bin =

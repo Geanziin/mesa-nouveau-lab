@@ -1329,11 +1329,13 @@ nvc0_screen_create(struct nouveau_device *dev)
       screen->nak = nak_compiler_create(&dev->info);
    }
 
+   /* The state tracker keeps optimising with nv50_ir's options: shaders NAK
+    * cannot take (images, SSBOs, legacy varyings) fall back to nv50_ir, which
+    * does not understand NAK-only ALU ops such as imad/iadd3/dot4.  The NAK
+    * path switches the clone to these options before its own passes. */
    if (screen->nak) {
       screen->nak_nir_opts = *nak_nir_options(screen->nak);
       screen->nak_nir_opts.lower_uniforms_to_ubo = true;
-      for (unsigned i = 0; i <= MESA_SHADER_COMPUTE; i++)
-         pscreen->nir_options[i] = &screen->nak_nir_opts;
    }
 
    nvc0_init_shader_caps(screen);
