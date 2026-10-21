@@ -28,6 +28,7 @@
 #include "util/u_inlines.h"
 #include "util/format/u_format.h"
 #include "util/u_threaded_context.h"
+#include "util/u_debug.h"
 
 #include "nvc0/nvc0_context.h"
 #include "nvc0/nvc0_resource.h"
@@ -194,6 +195,29 @@ nvc0_mt_choose_storage_type(struct pipe_screen *pscreen,
       return 0;
    if (unlikely(mt->base.base.flags & NOUVEAU_RESOURCE_FLAG_LINEAR))
       return 0;
+
+   /* Turing+: compress private colour render targets as well (NVK does the
+    * same).  Compression lives in the L2/comptags and is transparent to
+    * every engine that reaches the pages through the BO's kind, so sampling,
+    * copy-engine transfers, eviction copies and same-GPU dma-buf importers
+    * (which take the kind from GEM_INFO) all see decompressed data.  It only
+    * breaks raw-kind accesses: direct CPU maps (tiled miptrees always go
+    * through a staging copy) and scanout, hence the bind exclusions below.
+    * It halves (or better) the framebuffer bandwidth of clears/blending,
+    * which is what bounds light scenes on GA107.
+    *
+    * Requires the lossless REDUCE_COLOR thresholds set in nvc0_magic_3d_init;
+    * with the old 0xff thresholds compressed tiles came back quantised.
+    * Regression test: tests/gl-probes/comp-diag.c.  NVGD_COLOR_COMPRESSION=0
+    * turns it off. */
+   if (compressed && nouveau_screen(pscreen)->device->chipset >= 0x160 &&
+       !util_format_is_depth_or_stencil(mt->base.base.format) &&
+       (mt->base.base.bind & PIPE_BIND_RENDER_TARGET) &&
+       !(mt->base.base.bind & (PIPE_BIND_SHARED | PIPE_BIND_SCANOUT |
+                               PIPE_BIND_DISPLAY_TARGET | PIPE_BIND_LINEAR)) &&
+       mt->base.base.usage != PIPE_USAGE_STAGING &&
+       debug_get_bool_option("NVGD_COLOR_COMPRESSION", true))
+      return 0x08; /* NV_MMU_PTE_KIND_GENERIC_MEMORY_COMPRESSIBLE */
 
    return nvc0_choose_tiled_storage_type(pscreen, mt->base.base.format, ms, compressed);
 }

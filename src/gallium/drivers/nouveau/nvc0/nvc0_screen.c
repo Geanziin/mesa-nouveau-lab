@@ -517,14 +517,23 @@ tu102_graph_set_macro(struct nvc0_screen *screen, uint32_t m, unsigned pos,
 static void
 nvc0_magic_3d_init(struct nouveau_pushbuf *push, uint16_t obj_class)
 {
-   BEGIN_NVC0(push, SUBC_3D(0x10cc), 1);
+   /* 0x10cc..0x10f0 are SET_REDUCE_COLOR_THRESHOLDS_{UNORM8,UNORM10,UNORM16,
+    * FP11,FP16,SRGB8}: "reduce color" is a lossy CROP mode that collapses
+    * nearly-equal colours of a compressed tile.  0xff for the 8-bit formats
+    * lets it merge visibly different values (gradients quantised by +-2,
+    * clear colours rounded), which only shows once colour compression is
+    * active.  Use NVK's settings: feature disabled, conservative thresholds. */
+   BEGIN_NVC0(push, SUBC_3D(0x0d9c), 1); /* SET_REDUCE_COLOR_THRESHOLDS_ENABLE */
+   PUSH_DATA (push, 0);
+   BEGIN_NVC0(push, SUBC_3D(0x10cc), 1); /* UNORM8 */
+   PUSH_DATA (push, 0x4);
+   BEGIN_NVC0(push, SUBC_3D(0x10e0), 2); /* UNORM10, UNORM16 */
    PUSH_DATA (push, 0xff);
-   BEGIN_NVC0(push, SUBC_3D(0x10e0), 2);
    PUSH_DATA (push, 0xff);
+   BEGIN_NVC0(push, SUBC_3D(0x10e8), 3); /* FP11, FP16, SRGB8 */
+   PUSH_DATA (push, 0x3f);
    PUSH_DATA (push, 0xff);
-   BEGIN_NVC0(push, SUBC_3D(0x10ec), 2);
-   PUSH_DATA (push, 0xff);
-   PUSH_DATA (push, 0xff);
+   PUSH_DATA (push, 0x4);
    if (obj_class < GV100_3D_CLASS) {
       BEGIN_NVC0(push, SUBC_3D(0x074c), 1);
       PUSH_DATA (push, 0x3f);
