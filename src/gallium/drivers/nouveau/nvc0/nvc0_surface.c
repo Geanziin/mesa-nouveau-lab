@@ -295,14 +295,18 @@ nvc0_clear_render_target(struct pipe_context *pipe,
 {
    struct nvc0_context *nvc0 = nvc0_context(pipe);
    struct nouveau_pushbuf *push = nvc0->base.pushbuf;
-   struct nv50_surface *sf = nv50_surface(dst);
-   struct nv04_resource *res = nv04_resource(sf->base.texture);
+   struct nv50_surface *sf = nv50_surface(
+      nvc0_miptree_surface_new(pipe, dst->texture, dst));
+   struct nv04_resource *res = nv04_resource(dst->texture);
    unsigned z;
 
    assert(dst->texture->target != PIPE_BUFFER);
 
-   if (!PUSH_SPACE(push, 32 + sf->depth))
+   if (!sf)
       return;
+
+   if (!PUSH_SPACE(push, 32 + sf->depth))
+      goto out;
 
    PUSH_REF1 (push, res->bo, res->domain | NOUVEAU_BO_WR);
 
@@ -367,6 +371,9 @@ nvc0_clear_render_target(struct pipe_context *pipe,
       IMMED_NVC0(push, NVC0_3D(COND_MODE), nvc0->cond_condmode);
 
    nvc0->dirty_3d |= NVC0_NEW_3D_FRAMEBUFFER;
+
+out:
+   nv50_surface_destroy(pipe, &sf->base);
 }
 
 static void
@@ -632,15 +639,19 @@ nvc0_clear_depth_stencil(struct pipe_context *pipe,
    struct nvc0_context *nvc0 = nvc0_context(pipe);
    struct nouveau_pushbuf *push = nvc0->base.pushbuf;
    struct nv50_miptree *mt = nv50_miptree(dst->texture);
-   struct nv50_surface *sf = nv50_surface(dst);
+   struct nv50_surface *sf = nv50_surface(
+      nvc0_miptree_surface_new(pipe, dst->texture, dst));
    uint32_t mode = 0;
    int unk = mt->base.base.target == PIPE_TEXTURE_2D;
    unsigned z;
 
    assert(dst->texture->target != PIPE_BUFFER);
 
-   if (!PUSH_SPACE(push, 32 + sf->depth))
+   if (!sf)
       return;
+
+   if (!PUSH_SPACE(push, 32 + sf->depth))
+      goto out;
 
    PUSH_REF1 (push, mt->base.bo, mt->base.domain | NOUVEAU_BO_WR);
 
@@ -689,6 +700,9 @@ nvc0_clear_depth_stencil(struct pipe_context *pipe,
       IMMED_NVC0(push, NVC0_3D(COND_MODE), nvc0->cond_condmode);
 
    nvc0->dirty_3d |= NVC0_NEW_3D_FRAMEBUFFER;
+
+out:
+   nv50_surface_destroy(pipe, &sf->base);
 }
 
 void
@@ -1644,34 +1658,32 @@ nvc0_blit_clip_scissor(struct pipe_blit_info *info)
    if (maxx <= minx || maxy <= miny)
       return false;
 
+   /* Scaled blits go through nvc0_blit_3d, which applies the scissor
+    * itself.  Only unscaled blits (possibly mirrored on either axis) can
+    * reach the 2D engine, which no longer programs its CLIP rectangle, so
+    * those must be clipped here.  Mirrored axes have a negative source
+    * extent: the source start moves the other way when the left/bottom
+    * edge of the destination is clipped. */
+   const bool flip_x = info->src.box.width == -info->dst.box.width;
+   const bool flip_y = info->src.box.height == -info->dst.box.height;
+   if ((info->src.box.width != info->dst.box.width && !flip_x) ||
+       (info->src.box.height != info->dst.box.height && !flip_y))
+      return true;
+
    int dx0 = minx - info->dst.box.x;
    int dy0 = miny - info->dst.box.y;
    int new_w = maxx - minx;
    int new_h = maxy - miny;
 
-   if (info->src.box.width == info->dst.box.width &&
-       info->src.box.height == info->dst.box.height) {
-      info->src.box.x += dx0;
-      info->src.box.y += dy0;
-      info->src.box.width = new_w;
-      info->src.box.height = new_h;
-      info->dst.box.x = minx;
-      info->dst.box.y = miny;
-      info->dst.box.width = new_w;
-      info->dst.box.height = new_h;
-      info->scissor_enable = false;
-   } else if (info->src.box.width == -info->dst.box.width &&
-              info->src.box.height == info->dst.box.height) {
-      info->src.box.x -= dx0;
-      info->src.box.y += dy0;
-      info->src.box.width = -new_w;
-      info->src.box.height = new_h;
-      info->dst.box.x = minx;
-      info->dst.box.y = miny;
-      info->dst.box.width = new_w;
-      info->dst.box.height = new_h;
-      info->scissor_enable = false;
-   }
+   info->src.box.x += flip_x ? -dx0 : dx0;
+   info->src.box.y += flip_y ? -dy0 : dy0;
+   info->src.box.width = flip_x ? -new_w : new_w;
+   info->src.box.height = flip_y ? -new_h : new_h;
+   info->dst.box.x = minx;
+   info->dst.box.y = miny;
+   info->dst.box.width = new_w;
+   info->dst.box.height = new_h;
+   info->scissor_enable = false;
    return true;
 }
 
