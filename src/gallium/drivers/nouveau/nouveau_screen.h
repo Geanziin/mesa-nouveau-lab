@@ -115,6 +115,12 @@ struct nouveau_pushbuf_priv {
    struct nouveau_context *context;
 };
 
+/* Mark the context as unusable (channel killed by GSP-RM RC recovery
+ * or pushbuf timeout).  Implemented in nouveau_screen.c because the
+ * full struct nouveau_context lives in nouveau_context.h; callers
+ * only need the pointer. */
+void nouveau_context_mark_lost(struct nouveau_context *context);
+
 #define NV_VRAM_DOMAIN(screen) ((screen)->vram_domain)
 
 #ifdef NOUVEAU_ENABLE_DRIVER_STATISTICS

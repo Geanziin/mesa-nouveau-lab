@@ -23,6 +23,13 @@ struct nouveau_context {
 
    bool vbo_dirty;
 
+   /* Set when the kernel killed our channel (GSP-RM robust-channel
+    * recovery, pushbuf timeout, ...).  The context can no longer
+    * submit anything; userspace must report the loss so the state
+    * tracker triggers GL context-reset handling (GL_KHR_robustness)
+    * and the client recreates the context. */
+   bool context_lost;
+
    void (*copy_data)(struct nouveau_context *,
                      struct nouveau_bo *dst, unsigned, unsigned,
                      struct nouveau_bo *src, unsigned, unsigned, unsigned);

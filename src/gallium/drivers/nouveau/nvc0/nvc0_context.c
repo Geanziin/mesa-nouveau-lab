@@ -186,6 +186,16 @@ nvc0_emit_string_marker(struct pipe_context *pipe, const char *str, int len)
 static enum pipe_reset_status
 nvc0_get_device_reset_status(struct pipe_context *pipe)
 {
+   struct nvc0_context *nvc0 = nvc0_context(pipe);
+
+   /* The kernel killed our channel (GSP-RM robust-channel recovery or
+    * pushbuf timeout): every submission silently fails, so report the
+    * loss.  The state tracker turns this into a GL_KHR_robustness
+    * reset, Chromium/EGL clients get GL_GUILTY_CONTEXT_RESET and can
+    * recreate their context on a fresh channel. */
+   if (nvc0->base.context_lost)
+      return PIPE_GUILTY_CONTEXT_RESET;
+
    return PIPE_NO_RESET;
 }
 
@@ -281,8 +291,15 @@ nvc0_default_kick_notify(struct nouveau_context *context)
 {
    struct nvc0_context *nvc0 = nvc0_context(&context->pipe);
 
-   if (!_nouveau_fence_next(context))
+   if (!_nouveau_fence_next(context)) {
+      /* The fence can only fail when the channel was killed (RC
+       * recovery / pushbuf timeout).  Everything after this point
+       * would silently go nowhere; flag the loss so
+       * nvc0_get_device_reset_status() reports it to the state
+       * tracker and the client can recover. */
+      context->context_lost = true;
       return false;
+   }
    _nouveau_fence_update(context->screen, true);
 
    nvc0->state.flushed = true;

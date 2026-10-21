@@ -93,10 +93,20 @@ static inline void
 PUSH_KICK(struct nouveau_pushbuf *push)
 {
    struct nouveau_pushbuf_priv *ppush = push->user_priv;
+   int ret;
    simple_mtx_lock(&ppush->screen->fence.lock);
-   int ASSERTED ret = nouveau_pushbuf_kick(push);
-   assert(!ret);
+   ret = nouveau_pushbuf_kick(push);
    simple_mtx_unlock(&ppush->screen->fence.lock);
+   /* A failed kick means the channel is dead (GSP-RM robust-channel
+    * recovery or pushbuf timeout killed it; the kernel returns
+    * -ENODEV or the fence emit fails with -ENODEV).  Retrying forever
+    * spins the caller while its window shows the compositor's damage
+    * clear colour - flag the loss so nvc0_get_device_reset_status()
+    * reports it (GL_KHR_robustness) and the client can recreate its
+    * context on a fresh channel. */
+   if (ret && ppush->context)
+      nouveau_context_mark_lost(ppush->context);
+   assert(!ret);
 }
 
 static inline int

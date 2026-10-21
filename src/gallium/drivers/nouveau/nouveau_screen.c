@@ -267,14 +267,22 @@ nouveau_pushbuf_cb(struct nouveau_pushbuf *push)
    struct nouveau_pushbuf_priv *p = (struct nouveau_pushbuf_priv *)push->user_priv;
 
    if (p->context) {
-      if (!p->context->kick_notify(p->context))
+      if (!p->context->kick_notify(p->context)) {
+         nouveau_context_mark_lost(p->context);
          return false;
+      }
    } else {
       _nouveau_fence_update(p->screen, true);
    }
 
    NOUVEAU_DRV_STAT(p->screen, pushbuf_count, 1);
    return true;
+}
+
+void
+nouveau_context_mark_lost(struct nouveau_context *context)
+{
+   context->context_lost = true;
 }
 
 int
