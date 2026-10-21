@@ -561,6 +561,9 @@ struct nouveau_bo_priv {
    uint64_t map_handle;
    uint32_t name;
    uint32_t access;
+   /* imported through a dma-buf fd, flink name or GEM handle: another
+    * screen/process may produce or consume its contents */
+   bool imported;
 };
 
 static inline struct nouveau_bo_priv *
@@ -644,6 +647,7 @@ nouveau_bo_wrap_locked(struct nouveau_device *dev, uint32_t handle,
             break;
          }
 
+         nvbo->imported = true;
          *pbo = &nvbo->base;
          return 0;
       }
@@ -659,6 +663,7 @@ nouveau_bo_wrap_locked(struct nouveau_device *dev, uint32_t handle,
       nvbo->base.device = dev;
       bo_info(&nvbo->base, &req);
       nvbo->name = name;
+      nvbo->imported = true;
       list_add(&nvbo->head, &nvdev->bo_list);
       *pbo = &nvbo->base;
       return 0;
@@ -1064,6 +1069,8 @@ struct nouveau_pushbuf_krec {
    int nr_push;
    uint64_t vram_used;
    uint64_t gart_used;
+   /* references an imported BO (see nouveau_bo_priv::imported) */
+   bool refs_imported;
 };
 
 struct nouveau_pushbuf_priv {
@@ -1260,6 +1267,7 @@ pushbuf_flush(struct nouveau_pushbuf *push)
    krec->nr_buffer = 0;
    krec->nr_reloc = 0;
    krec->nr_push = 0;
+   krec->refs_imported = false;
 
    list_for_each_entry_safe(struct nouveau_bufctx, bctx, &nvpb->bctx_list, head) {
       list_splice(&bctx->current, &bctx->pending);
@@ -1390,6 +1398,8 @@ pushbuf_kref(struct nouveau_pushbuf *push, struct nouveau_bo *bo, uint32_t flags
          return NULL;
 
       kref = &krec->buffer[krec->nr_buffer++];
+      if (nouveau_bo(bo)->imported)
+         krec->refs_imported = true;
       kref->user_priv = (unsigned long)bo;
       kref->handle = bo->handle;
       kref->valid_domains = domains;
@@ -1699,6 +1709,12 @@ nouveau_pushbuf_data(struct nouveau_pushbuf *push, struct nouveau_bo *bo, uint64
       kpsh->offset   = offset;
       kpsh->length   = length;
    }
+}
+
+bool
+nouveau_pushbuf_refs_imported(struct nouveau_pushbuf *push)
+{
+   return nouveau_pushbuf(push)->krec->refs_imported;
 }
 
 int

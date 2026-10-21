@@ -344,6 +344,10 @@ const void *nvc0_get_sample_locations(unsigned);
 /* nvc0_draw.c */
 extern struct draw_stage *nvc0_draw_render_stage(struct nvc0_context *);
 
+/* nvc0_context.c */
+void nvc0_state_lock(struct nvc0_context *);
+void nvc0_state_unlock_kick(struct nvc0_context *);
+
 /* nvc0_program.c */
 bool nvc0_program_translate(struct nvc0_program *, struct nvc0_screen *,
                             struct util_debug_callback *);

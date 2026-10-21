@@ -1069,7 +1069,7 @@ nvc0_draw_vbo(struct pipe_context *pipe, const struct pipe_draw_info *info,
    unsigned drawid = drawid_offset;
 
    /* dont wanna start trippin */
-   simple_mtx_lock(&nvc0->screen->state_lock);
+   nvc0_state_lock(nvc0);
 
    /* NOTE: caller must ensure that (min_index + index_bias) is >= 0 */
    if (info->index_bounds_valid) {
@@ -1167,8 +1167,7 @@ nvc0_draw_vbo(struct pipe_context *pipe, const struct pipe_draw_info *info,
          drawid++;
    }
 
-   PUSH_KICK(push);
-   simple_mtx_unlock(&nvc0->screen->state_lock);
+   nvc0_state_unlock_kick(nvc0);
 
    nvc0->base.kick_notify = nvc0_default_kick_notify;
 

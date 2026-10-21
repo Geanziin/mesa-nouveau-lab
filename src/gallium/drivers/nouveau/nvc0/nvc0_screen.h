@@ -74,6 +74,21 @@ struct nvc0_screen {
    struct nvc0_graph_state save_state;
    simple_mtx_t state_lock;
 
+   /* Deferred submission (all under state_lock).  All contexts of a screen
+    * share one channel, so upstream kicks after every draw to keep the
+    * per-context 3D state self-contained.  While a single context exists
+    * nothing can interleave, so the kick is deferred to flush/fence/wait,
+    * which removes one pushbuf ioctl + kernel fence per draw. */
+   unsigned num_contexts;
+   struct nvc0_context *deferred_ctx;
+   bool defer_kicks;
+   /* operations deferred since the last kick before one is forced, so the
+    * GPU starts on long frames while the CPU keeps recording (0 = no limit;
+    * mid-frame kicks currently cost more than the overlap gains, because
+    * buffer updates then have to wait for the submitted work) */
+   unsigned defer_batch;
+   unsigned deferred_ops;
+
    int num_occlusion_queries_active;
 
    struct nouveau_bo *text;

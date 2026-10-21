@@ -1311,6 +1311,9 @@ nvc0_screen_create(struct nouveau_device *dev)
                                         screen->m2mf->oclass,
                                         screen->copy ? screen->copy->oclass : 0);
 
+   screen->defer_kicks = debug_get_bool_option("NVGD_DEFER_KICK", true);
+   screen->defer_batch = debug_get_num_option("NVGD_KICK_BATCH", 0);
+
    const bool use_nak = debug_get_bool_option("NVGD_USE_NAK", true);
    if (use_nak && dev->chipset >= 0x160) {
       if (!dev->info.sm) {

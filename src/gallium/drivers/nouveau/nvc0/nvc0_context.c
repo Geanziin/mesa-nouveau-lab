@@ -77,6 +77,56 @@ nvc0_svm_migrate(struct pipe_context *pipe, unsigned num_ptrs,
 }
 
 
+/* Submit work another context left deferred in its pushbuf.  It must reach
+ * the GPU before anything recorded under a different context, otherwise it
+ * would execute on top of that context's 3D state.  Deferred work always ends
+ * at a state_lock release, so it is a complete command sequence. */
+static void
+nvc0_kick_deferred_locked(struct nvc0_screen *screen)
+{
+   struct nvc0_context *prev = screen->deferred_ctx;
+
+   simple_mtx_assert_locked(&screen->state_lock);
+   screen->deferred_ctx = NULL;
+   if (prev)
+      PUSH_KICK(prev->base.pushbuf);
+}
+
+/* Take the screen state lock for a 3D/compute operation. */
+void
+nvc0_state_lock(struct nvc0_context *nvc0)
+{
+   struct nvc0_screen *screen = nvc0->screen;
+
+   simple_mtx_lock(&screen->state_lock);
+   if (unlikely(screen->deferred_ctx && screen->deferred_ctx != nvc0))
+      nvc0_kick_deferred_locked(screen);
+}
+
+void
+nvc0_state_unlock_kick(struct nvc0_context *nvc0)
+{
+   struct nvc0_screen *screen = nvc0->screen;
+
+   simple_mtx_assert_locked(&screen->state_lock);
+
+   /* Buffers shared through dma-buf are synchronised by the kernel only once
+    * the commands touching them are submitted.  Chromium/ANGLE exchange
+    * them between separate screens in the same process (GBM, EGL) and with
+    * the compositor, relying on that implicit sync, so never hold such work
+    * back (deferring it made Discord's animated content flicker). */
+   if (screen->defer_kicks && screen->num_contexts == 1 &&
+       (!screen->defer_batch || ++screen->deferred_ops < screen->defer_batch) &&
+       !nouveau_pushbuf_refs_imported(nvc0->base.pushbuf)) {
+      screen->deferred_ctx = nvc0;
+   } else {
+      PUSH_KICK(nvc0->base.pushbuf);
+      if (screen->deferred_ctx == nvc0)
+         screen->deferred_ctx = NULL;
+   }
+   simple_mtx_unlock(&screen->state_lock);
+}
+
 static void
 nvc0_flush(struct pipe_context *pipe,
            struct pipe_fence_handle **fence,
@@ -258,6 +308,10 @@ nvc0_destroy(struct pipe_context *pipe)
       nvc0->screen->save_state = nvc0->state;
       nvc0->screen->save_state.tfb = NULL;
    }
+   /* our pending work is kicked right below */
+   if (nvc0->screen->deferred_ctx == nvc0)
+      nvc0->screen->deferred_ctx = NULL;
+   nvc0->screen->num_contexts--;
    simple_mtx_unlock(&nvc0->screen->state_lock);
 
    if (nvc0->base.pipe.stream_uploader)
@@ -303,6 +357,7 @@ nvc0_default_kick_notify(struct nouveau_context *context)
    _nouveau_fence_update(context->screen, true);
 
    nvc0->state.flushed = true;
+   nvc0->screen->deferred_ops = 0;
    return true;
 }
 
@@ -547,6 +602,10 @@ nvc0_create(struct pipe_screen *pscreen, void *priv, unsigned ctxflags)
       nvc0->state = screen->save_state;
       screen->cur_ctx = nvc0;
    }
+   /* A second context ends deferral: from now on every operation is kicked
+    * while the lock is held, as upstream does. */
+   if (++screen->num_contexts > 1)
+      nvc0_kick_deferred_locked(screen);
    simple_mtx_unlock(&screen->state_lock);
 
    nouveau_pushbuf_bufctx(nvc0->base.pushbuf, nvc0->bufctx);
