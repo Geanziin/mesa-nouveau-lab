@@ -204,6 +204,7 @@ nvc0_compute_validate_constbufs(struct nvc0_context *nvc0)
             BEGIN_NVC0(push, NVC0_CP(CB_BIND), 1);
             PUSH_DATA (push, (i << 8) | 1);
 
+            nouveau_bufctx_reset(nvc0->bufctx_cp, NVC0_BIND_CP_CB(i));
             BCTX_REFN(nvc0->bufctx_cp, CP_CB(i), res, RD);
 
             res->cb_bindings[s] |= 1 << i;

@@ -395,6 +395,7 @@ nve4_compute_validate_constbufs(struct nvc0_context *nvc0)
                PUSH_DATA (push, 0);
             }
 
+            nouveau_bufctx_reset(nvc0->bufctx_cp, NVC0_BIND_CP_CB(i));
             BCTX_REFN(nvc0->bufctx_cp, CP_CB(i), res, RD);
             res->cb_bindings[s] |= 1 << i;
          }
@@ -947,8 +948,10 @@ nve4_compute_validate_textures(struct nvc0_context *nvc0)
 
       nvc0->tex_handles[s][i] &= ~NVE4_TIC_ENTRY_INVALID;
       nvc0->tex_handles[s][i] |= tic->id;
-      if (dirty)
+      if (dirty) {
+         nouveau_bufctx_reset(nvc0->bufctx_cp, NVC0_BIND_CP_TEX(i));
          BCTX_REFN(nvc0->bufctx_cp, CP_TEX(i), res, RD);
+      }
    }
    for (; i < nvc0->state.num_textures[s]; ++i) {
       nvc0->tex_handles[s][i] |= NVE4_TIC_ENTRY_INVALID;

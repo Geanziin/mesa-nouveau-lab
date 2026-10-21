@@ -559,6 +559,8 @@ nvc0_constbufs_validate(struct nvc0_context *nvc0)
                                       nvc0->constbuf[s][i].size,
                                       res->address + nvc0->constbuf[s][i].offset);
 
+               /* one resource per slot bin, see nvc0_validate_tic */
+               nouveau_bufctx_reset(nvc0->bufctx_3d, NVC0_BIND_3D_CB(s, i));
                BCTX_REFN(nvc0->bufctx_3d, 3D_CB(s, i), res, RD);
 
                nvc0->cb_dirty = 1; /* Force cache flush for UBO. */

@@ -525,10 +525,16 @@ nvc0_validate_tic(struct nvc0_context *nvc0, int s)
          continue;
       commands[n++] = (tic->id << 9) | (i << 1) | 1;
 
-      if (unlikely(s == 5))
+      /* A slot bin holds exactly one resource; slots can be re-marked dirty
+       * without a rebind, so drop the previous reference instead of piling
+       * up duplicates that every later validation walks again. */
+      if (unlikely(s == 5)) {
+         nouveau_bufctx_reset(nvc0->bufctx_cp, NVC0_BIND_CP_TEX(i));
          BCTX_REFN(nvc0->bufctx_cp, CP_TEX(i), res, RD);
-      else
+      } else {
+         nouveau_bufctx_reset(nvc0->bufctx_3d, NVC0_BIND_3D_TEX(s, i));
          BCTX_REFN(nvc0->bufctx_3d, 3D_TEX(s, i), res, RD);
+      }
    }
    for (; i < nvc0->state.num_textures[s]; ++i)
       commands[n++] = (i << 1) | 0;
@@ -585,8 +591,11 @@ nve4_validate_tic(struct nvc0_context *nvc0, unsigned s)
 
       nvc0->tex_handles[s][i] &= ~NVE4_TIC_ENTRY_INVALID;
       nvc0->tex_handles[s][i] |= tic->id;
-      if (dirty)
+      if (dirty) {
+         /* one resource per slot bin, see nvc0_validate_tic */
+         nouveau_bufctx_reset(nvc0->bufctx_3d, NVC0_BIND_3D_TEX(s, i));
          BCTX_REFN(nvc0->bufctx_3d, 3D_TEX(s, i), res, RD);
+      }
    }
    for (; i < nvc0->state.num_textures[s]; ++i) {
       nvc0->tex_handles[s][i] |= NVE4_TIC_ENTRY_INVALID;
