@@ -1080,8 +1080,12 @@ end_frame(struct pipe_video_codec *codec, struct pipe_video_buffer *target,
                          &dec->bitstream_buffer))
          goto fail;
    }
-   memset(dec->bitstream_buffer.map, 0, range + 256);
-   memcpy(dec->bitstream_buffer.map, dec->bitstream.data, dec->bitstream.size);
+    memcpy(dec->bitstream_buffer.map, dec->bitstream.data, dec->bitstream.size);
+    /* Only the alignment/overread padding needs clearing; the payload is
+     * overwritten by the copy above on every frame.
+     */
+    memset((uint8_t *)dec->bitstream_buffer.map + dec->bitstream.size, 0,
+           range + 256 - dec->bitstream.size);
 
    if (dec->zero_copy && !finish_pipe(codec->context))
       goto fail;

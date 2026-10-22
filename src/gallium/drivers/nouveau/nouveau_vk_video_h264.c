@@ -22,7 +22,14 @@ nouveau_vk_h264_append(struct nouveau_vk_h264_bitstream *stream,
       total += sizes[i];
    }
    if (total > stream->capacity) {
-      size_t capacity = total > 4096 ? total : 4096;
+       /* Grow geometrically: appending many slices or gradually larger
+        * frames should not reallocate the whole accumulated bitstream.
+        */
+       size_t capacity = stream->capacity > 4096 ? stream->capacity : 4096;
+       while (capacity < total)
+          capacity *= 2;
+       if (capacity > NOUVEAU_VK_H264_MAX_BITSTREAM)
+          capacity = NOUVEAU_VK_H264_MAX_BITSTREAM;
       uint8_t *data = realloc(stream->data, capacity);
       if (!data)
          return false;

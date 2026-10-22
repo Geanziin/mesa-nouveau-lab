@@ -485,13 +485,22 @@ upload(const struct nvenc_backend *s, struct slot *slot, const uint8_t *y,
       uint8_t *map = slot->buffers[plane ? SLOT_INPUT_UV : SLOT_INPUT_Y].map;
       for (unsigned row = 0; row < (s->coded_height >> plane); row++) {
          unsigned source_y =
-            row < (s->height >> plane) ? row : (s->height >> plane) - 1;
-         for (unsigned x = 0; x < s->pitch; x++) {
+             row < (s->height >> plane) ? row : (s->height >> plane) - 1;
+         const uint8_t *source =
+            planes[plane] + (size_t)source_y * pitches[plane];
+         unsigned x = 0;
+         /* Each aligned 16-byte run is contiguous inside a GOB. Avoid
+          * recalculating the tiled address and copying one byte at a time.
+          * Keep the scalar tail for partial runs and edge replication.
+          */
+         for (; x + 16 <= s->width; x += 16)
+            memcpy(map + gob_offset(x, row, s->pitch, 2), source + x, 16);
+         for (; x < s->pitch; x++) {
             unsigned source_x = x < s->width ? x
                                              : s->width - (plane ? 2 : 1) +
                                                   (plane ? x % 2 : 0);
             map[gob_offset(x, row, s->pitch, 2)] =
-               planes[plane][(size_t)source_y * pitches[plane] + source_x];
+               source[source_x];
          }
       }
    }
