@@ -103,6 +103,24 @@ nvc0_state_lock(struct nvc0_context *nvc0)
       nvc0_kick_deferred_locked(screen);
 }
 
+/* Long frames would otherwise leave the GPU idle until flush time while the
+ * CPU records hundreds of draws.  Once a minimum batch is recorded, submit it
+ * as soon as the GPU has drained everything it was given (the fence page
+ * shows the last emitted sequence), so recording and execution overlap
+ * without paying a submission per draw.  defer_batch caps the batch size. */
+static inline bool
+nvc0_should_kick_deferred(struct nvc0_screen *screen)
+{
+   const unsigned ops = ++screen->deferred_ops;
+
+   if (screen->defer_batch && ops >= screen->defer_batch)
+      return true;
+   if (ops < screen->defer_idle_min || !screen->defer_idle_min)
+      return false;
+   return screen->base.fence.update(&screen->base.base) ==
+          screen->base.fence.sequence;
+}
+
 void
 nvc0_state_unlock_kick(struct nvc0_context *nvc0)
 {
@@ -116,11 +134,12 @@ nvc0_state_unlock_kick(struct nvc0_context *nvc0)
     * the compositor, relying on that implicit sync, so never hold such work
     * back (deferring it made Discord's animated content flicker). */
    if (screen->defer_kicks && screen->num_contexts == 1 &&
-       (!screen->defer_batch || ++screen->deferred_ops < screen->defer_batch) &&
+       !nvc0_should_kick_deferred(screen) &&
        !nouveau_pushbuf_refs_imported(nvc0->base.pushbuf)) {
       screen->deferred_ctx = nvc0;
    } else {
       PUSH_KICK(nvc0->base.pushbuf);
+      screen->deferred_ops = 0;
       if (screen->deferred_ctx == nvc0)
          screen->deferred_ctx = NULL;
    }
@@ -357,7 +376,6 @@ nvc0_default_kick_notify(struct nouveau_context *context)
    _nouveau_fence_update(context->screen, true);
 
    nvc0->state.flushed = true;
-   nvc0->screen->deferred_ops = 0;
    return true;
 }
 

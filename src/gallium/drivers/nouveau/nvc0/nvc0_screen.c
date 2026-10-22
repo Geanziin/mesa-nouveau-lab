@@ -1322,7 +1322,8 @@ nvc0_screen_create(struct nouveau_device *dev)
                                         screen->copy ? screen->copy->oclass : 0);
 
    screen->defer_kicks = debug_get_bool_option("NVGD_DEFER_KICK", true);
-   screen->defer_batch = debug_get_num_option("NVGD_KICK_BATCH", 0);
+   screen->defer_batch = debug_get_num_option("NVGD_KICK_BATCH", 256);
+   screen->defer_idle_min = debug_get_num_option("NVGD_KICK_IDLE_MIN", 96);
 
    const bool use_nak = debug_get_bool_option("NVGD_USE_NAK", true);
    if (use_nak && dev->chipset >= 0x160) {

@@ -83,10 +83,9 @@ struct nvc0_screen {
    struct nvc0_context *deferred_ctx;
    bool defer_kicks;
    /* operations deferred since the last kick before one is forced, so the
-    * GPU starts on long frames while the CPU keeps recording (0 = no limit;
-    * mid-frame kicks currently cost more than the overlap gains, because
-    * buffer updates then have to wait for the submitted work) */
+    * GPU starts on long frames while the CPU keeps recording (0 = no cap) */
    unsigned defer_batch;
+   unsigned defer_idle_min; /* kick early once the GPU is idle (0 = never) */
    unsigned deferred_ops;
 
    int num_occlusion_queries_active;
