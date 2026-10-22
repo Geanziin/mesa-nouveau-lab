@@ -1,43 +1,43 @@
 # nvgd
 
-**nvgd** é um driver gráfico baseado no Mesa, mantido de forma independente e
-focado em GPUs NVIDIA **Turing e mais novas** (GTX 16xx, RTX 20xx/30xx/40xx).
-OpenGL e Vulkan rodam de forma **nativa**, sem camada de tradução: OpenGL 4.6
-pelo driver Gallium `nvc0` com o compilador de shaders **NAK**, Vulkan 1.4 pelo
-**NVK**. Nada passa por Zink nem ANGLE.
+**nvgd** is an independent, Mesa-based graphics driver focused on NVIDIA
+**Turing and newer** GPUs (GTX 16xx, RTX 20xx/30xx/40xx). OpenGL and Vulkan
+run **natively** with no translation layer: OpenGL 4.6 through the `nvc0`
+Gallium driver with the **NAK** shader compiler, and Vulkan 1.4 through
+**NVK**. Nothing goes through Zink or ANGLE.
 
-O lado do kernel é o [nvgd-dkms](https://github.com/Geanziin/nvgd-dkms): um
-fork do nouveau com suporte nativo ao firmware GSP-RM 615. Os pacotes para
-Arch/CachyOS ficam em [nvgd-repo](https://github.com/Geanziin/nvgd-repo).
+The kernel side is [nvgd-dkms](https://github.com/Geanziin/nvgd-dkms), a
+nouveau fork with native GSP-RM 615 firmware support. Arch/CachyOS packages
+live in [nvgd-repo](https://github.com/Geanziin/nvgd-repo).
 
-> Projeto independente. Não é afiliado ao Mesa, ao nouveau nem à NVIDIA e não
-> é enviado para o Mesa upstream. A branch `upstream` acompanha o Mesa oficial
-> e serve de base para rebases.
+> This is an independent project. It is not affiliated with Mesa, nouveau or
+> NVIDIA and is not submitted to upstream Mesa. The `upstream` branch tracks
+> official Mesa and is used as the rebase base.
 
-## Desempenho: nvgd × driver proprietário (RTX 3050)
+## Performance: nvgd vs. the proprietary driver (RTX 3050)
 
-Mesma máquina, mesma sessão GNOME, `glmark2` 2023.01 com a resolução padrão
-(800x600).
+Same machine, same GNOME session, `glmark2` 2023.01 at its default 800x600
+resolution.
 
-| Modo | nvgd | NVIDIA 615.78.08 | nvgd / NVIDIA |
+| Mode | nvgd | NVIDIA 615.78.08 | nvgd / NVIDIA |
 |---|---:|---:|---:|
-| `glmark2 --off-screen` (só o driver, sem apresentação) | **35 236** | 31 803 | **1.11x** |
-| `glmark2-wayland` (janela, Wayland nativo) | **9 902** | 2 653 | **3.73x** |
-| `glmark2` (janela, X11/GLX via Xwayland) | **4 984** | 4 016 | **1.24x** |
+| `glmark2 --off-screen` (driver only, no presentation) | **35,236** | 31,803 | **1.11x** |
+| `glmark2-wayland` (windowed, native Wayland) | **9,902** | 2,653 | **3.73x** |
+| `glmark2` (windowed, X11/GLX via Xwayland) | **4,984** | 4,016 | **1.24x** |
 
-Ambiente:
+Setup:
 
 - GPU: GeForce RTX 3050 6 GB (GA107), PCIe 3.0 x8
 - CPU: Intel Xeon E5-2697 v3
-- Sistema: CachyOS, GNOME (Wayland)
-- nvgd: kernel 7.2.11 + nvgd-dkms, Mesa nvgd
-- Proprietário: kernel 6.18 LTS + `nvidia-open` 615.78.08
+- OS: CachyOS, GNOME (Wayland)
+- nvgd: kernel 7.2.11 + nvgd-dkms, nvgd Mesa
+- Proprietary: kernel 6.18 LTS + `nvidia-open` 615.78.08
 
-### Por cena (`--off-screen`)
+### Per scene (`--off-screen`)
 
-O nvgd vence em 22 das 33 cenas.
+nvgd wins 22 of the 33 scenes.
 
-| Cena | nvgd | NVIDIA 615.78.08 | nvgd / NVIDIA |
+| Scene | nvgd | NVIDIA 615.78.08 | nvgd / NVIDIA |
 |---|---:|---:|---:|
 | `build` use-vbo=false | 4887 | 4834 | **1.01x** |
 | `build` use-vbo=true | 67300 | 53369 | **1.26x** |
@@ -73,17 +73,17 @@ O nvgd vence em 22 das 33 cenas.
 | `loop` fragment-steps=5:fragment-uniform=false:verte... | 49221 | 44681 | **1.10x** |
 | `loop` fragment-steps=5:fragment-uniform=true:vertex... | 48726 | 44417 | **1.10x** |
 
-Onde o proprietário ainda ganha:
+Where the proprietary driver still leads:
 
-- Cenas muito leves (`texture`, `effect2d`): limitadas pela latência de ida e
-  volta à GPU. O driver da NVIDIA submete trabalho direto do userspace pelo
-  doorbell; o nvgd ainda passa por um ioctl do kernel a cada frame (~4,5 µs
-  nesta CPU).
-- `ideas`: custo de CPU por draw no Mesa.
-- `terrain`/`refract`: limitadas pela GPU, onde pesa a qualidade do código
-  gerado pelo compilador de shaders.
+- Very light scenes (`texture`, `effect2d`) are bound by the round trip to
+  the GPU. NVIDIA's driver submits work straight from userspace through the
+  doorbell, while nvgd still goes through a kernel ioctl every frame
+  (~4.5 µs on this CPU).
+- `ideas` is bound by per-draw CPU cost in Mesa.
+- `terrain` and `refract` are GPU-bound, so shader code quality from the
+  compiler matters most.
 
-Para reproduzir:
+To reproduce:
 
 ```sh
 glmark2 --off-screen
@@ -91,53 +91,53 @@ glmark2-wayland
 glmark2
 ```
 
-## O que o nvgd muda em relação ao Mesa
+## What nvgd changes compared to Mesa
 
-- **NAK no OpenGL**: o compilador Rust do NVK compila os shaders do driver
-  `nvc0` em Turing+. O que o NAK ainda não cobre (imagens, SSBOs, varyings
-  legados do perfil compatibility) volta para o nv50_ir.
-- **Submissão adiada**: com um único contexto, o trabalho é enviado no
-  flush/fence em vez de a cada draw. Ainda assim é enviado cedo quando a GPU
-  fica ociosa, e na hora quando envolve buffers dma-buf compartilhados.
-- **Fences**: espera da fence por polling da página coerente antes de dormir no
-  kernel, e reaproveitamento dos BOs de fence.
-- **Compressão de cor** em render targets privados, com os limites de
-  *reduce-color* sem perda.
-- **Buffers**: mapeamento direto de buffers de VRAM ociosos em maps só de
-  escrita.
-- **Validação de estado**: correção de referências duplicadas de textura/UBO
-  que cresciam sem limite.
-- **Correções de renderização** para Chromium/Electron (Discord, Brave), GLX e
+- **NAK for OpenGL**: NVK's Rust compiler compiles the `nvc0` driver's shaders
+  on Turing+. Anything NAK does not cover yet (images, SSBOs, legacy
+  compatibility-profile varyings) falls back to nv50_ir.
+- **Deferred submission**: with a single context, work is submitted at
+  flush/fence time instead of after every draw. It is still submitted early
+  once the GPU goes idle, and immediately when it touches shared dma-buf
+  buffers.
+- **Fences**: fence waits poll the coherent fence page before sleeping in the
+  kernel, and fence BOs are recycled.
+- **Colour compression** on private render targets, with lossless
+  *reduce-color* thresholds.
+- **Buffers**: idle VRAM buffers are mapped directly for write-only maps.
+- **State validation**: fixed duplicated texture/UBO references that grew
+  without bound.
+- **Rendering fixes** for Chromium/Electron (Discord, Brave), GLX and
   GPU Screen Recorder.
 
-### Variáveis de ambiente
+### Environment variables
 
-| Variável | Padrão | Efeito |
+| Variable | Default | Effect |
 |---|---|---|
-| `NVGD_USE_NAK` | `true` | usa o NAK nos shaders OpenGL |
-| `NVGD_DEFER_KICK` | `true` | submissão adiada |
-| `NVGD_KICK_IDLE_MIN` / `NVGD_KICK_BATCH` | `96` / `256` | submissão antecipada quando a GPU está ociosa / limite do lote |
-| `NVGD_FENCE_SPIN_US` | `200` | tempo de polling antes da espera no kernel |
-| `NVGD_COLOR_COMPRESSION` | `true` | compressão de cor em Turing+ |
-| `NVGD_DIRECT_VRAM_MAP` | `true` | map direto de buffers de VRAM ociosos |
-| `NVGD_DEBUG_NAK` | `false` | log de qual compilador cada shader usou |
+| `NVGD_USE_NAK` | `true` | use NAK for OpenGL shaders |
+| `NVGD_DEFER_KICK` | `true` | deferred submission |
+| `NVGD_KICK_IDLE_MIN` / `NVGD_KICK_BATCH` | `96` / `256` | early submission when the GPU is idle / batch cap |
+| `NVGD_FENCE_SPIN_US` | `200` | polling time before the kernel fence wait |
+| `NVGD_COLOR_COMPRESSION` | `true` | colour compression on Turing+ |
+| `NVGD_DIRECT_VRAM_MAP` | `true` | direct maps of idle VRAM buffers |
+| `NVGD_DEBUG_NAK` | `false` | log which compiler each shader used |
 
-## Compilando
+## Building
 
-Igual ao Mesa (veja `README.mesa.rst` e <https://docs.mesa3d.org/install.html>):
+Same as Mesa (see `README.mesa.rst` and <https://docs.mesa3d.org/install.html>):
 
 ```sh
 meson setup build -Dgallium-drivers=nouveau,zink,softpipe -Dvulkan-drivers=nouveau
 ninja -C build
 ```
 
-## Contribuindo
+## Contributing
 
-Pull requests são bem-vindos. Abra o PR contra a branch `main`; todo PR é
-revisado e aceito ou recusado pelo mantenedor. Para mudanças de desempenho,
-inclua os números do `glmark2` antes/depois e o resultado dos testes de
-renderização. Bugs e ideias vão em *Issues*.
+Pull requests are welcome. Open them against `main`; every PR is reviewed and
+accepted or declined by the maintainer. For performance changes, include
+`glmark2` numbers before and after plus the results of the rendering tests.
+Use *Issues* for bugs and ideas.
 
-## Licença
+## License
 
-Mesmas licenças do Mesa (majoritariamente MIT; veja `docs/license.rst`).
+Same licenses as Mesa (mostly MIT; see `docs/license.rst`).

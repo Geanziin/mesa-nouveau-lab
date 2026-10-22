@@ -1,12 +1,12 @@
-## O que muda
+## What changes
 
-<!-- descreva a mudança e o motivo -->
+<!-- describe the change and why -->
 
-## Testes
+## Testing
 
-- [ ] renderização correta (Discord/Brave/glmark2 ou testes próprios)
-- [ ] `glmark2 --off-screen` antes/depois:
+- [ ] rendering is correct (Discord/Brave/glmark2 or your own tests)
+- [ ] `glmark2 --off-screen` before/after:
 
-GPU / kernel usados:
+GPU / kernel used:
 
-> Todo PR é revisado pelo mantenedor, que decide se aceita ou recusa.
+> Every PR is reviewed by the maintainer, who decides whether to accept or decline it.
