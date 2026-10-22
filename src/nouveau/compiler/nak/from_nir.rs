@@ -1898,6 +1898,10 @@ impl<'a> ShaderFromNir<'a> {
                 }
             }
             GLSL_SAMPLER_DIM_BUF => TexDim::_1D,
+            /* External textures are 2D.  This is how the legacy nv50 IR
+             * backend handles samplerExternalOES and YCbCr images.
+             */
+            GLSL_SAMPLER_DIM_EXTERNAL | GLSL_SAMPLER_DIM_EXTERNAL_2D_Y2Y => TexDim::_2D,
             GLSL_SAMPLER_DIM_MS => {
                 if tex.is_array {
                     TexDim::Array2D
