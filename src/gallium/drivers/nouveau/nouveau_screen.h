@@ -71,6 +71,8 @@ struct nouveau_screen {
    bool disable_fences;
    /* busy-poll budget before a kernel fence wait (NVGD_FENCE_SPIN_US) */
    int64_t fence_spin_ns;
+   /* map idle VRAM buffers directly for write-only maps (NVGD_DIRECT_VRAM_MAP) */
+   bool direct_vram_writes;
    void *svm_cutout;
    size_t svm_cutout_size;
 

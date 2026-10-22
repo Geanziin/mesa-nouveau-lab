@@ -508,6 +508,7 @@ nouveau_screen_init(struct nouveau_screen *screen, struct nouveau_device *dev)
    nouveau_fence_list_init(&screen->fence);
    screen->fence_spin_ns =
       debug_get_num_option("NVGD_FENCE_SPIN_US", 200) * 1000;
+   screen->direct_vram_writes = debug_get_bool_option("NVGD_DIRECT_VRAM_MAP", true);
 
    screen->mm_GART = nouveau_mm_create(dev,
                                        NOUVEAU_BO_GART | NOUVEAU_BO_MAP,

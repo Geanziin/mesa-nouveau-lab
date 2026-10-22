@@ -452,6 +452,23 @@ nouveau_buffer_transfer_map(struct pipe_context *pipe,
             }
             nouveau_transfer_staging(nv, tx, false);
             nouveau_transfer_read(nv, tx);
+         } else if ((usage & PIPE_MAP_READ_WRITE) == PIPE_MAP_WRITE &&
+                    !(usage & (PIPE_MAP_PERSISTENT | PIPE_MAP_COHERENT)) &&
+                    nv->screen->direct_vram_writes &&
+                    !nouveau_buffer_busy(buf, PIPE_MAP_WRITE) &&
+                    /* idleness comes from our fences; skip BO_MAP's kernel
+                     * CPU_PREP round-trip once the BAR mapping exists */
+                    (buf->bo->map ||
+                     !BO_MAP(nv->screen, buf->bo, 0, nv->client))) {
+            /* Idle buffer mapped write-only: write straight into VRAM
+             * through the (write-combined) BAR mapping instead of going
+             * through the CPU shadow copy, a staging copy and a GPU copy on
+             * unmap.  The shadow would go stale, so drop it. */
+            if (buf->data) {
+               align_free(buf->data);
+               buf->data = NULL;
+            }
+            return (uint8_t *)buf->bo->map + buf->offset + box->x;
          } else {
             /* The buffer is currently idle. Create a staging area for writes,
              * and make sure that the cached data is up-to-date. */
