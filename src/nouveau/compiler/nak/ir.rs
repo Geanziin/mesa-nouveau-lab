@@ -7117,7 +7117,7 @@ pub struct OpBSSy {
     #[dst_type(Bar)]
     pub bar_out: Dst,
 
-    #[src_type(Pred)]
+    #[src_type(Bar)]
     pub bar_in: Src,
 
     #[src_type(Pred)]

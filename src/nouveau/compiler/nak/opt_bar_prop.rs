@@ -242,8 +242,10 @@ impl BarPropPass {
                                         .into(),
                                 }),
                             );
+                            bmovs.insert(1, instr);
+                        } else {
+                            bmovs.insert(0, instr);
                         }
-                        bmovs.insert(1, instr);
                         bmovs.into()
                     }
                 }
