@@ -6,3 +6,5 @@
 *.ico binary
 *.cl gitlab-language=c
 docs/relnotes/new_features.txt merge=union
+# Preserve raw FFmpeg evidence, including its trailing progress-line spaces.
+docs/benchmarks/native-video-2026-10-23/*.log -whitespace

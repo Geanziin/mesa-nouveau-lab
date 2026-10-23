@@ -258,8 +258,8 @@ surface_usable(const struct nvenc_codec *codec,
    const unsigned coded_height = align(codec->backend_height, 16);
    const unsigned pitch = nvenc_backend_pitch(codec->backend);
 
-   if (!luma->base.bo || luma->base.bo != chroma->base.bo ||
-       luma->base.domain != NOUVEAU_BO_VRAM ||
+   if (!luma->base.bo || !chroma->base.bo ||
+       luma->base.domain != NOUVEAU_BO_VRAM || chroma->base.domain != NOUVEAU_BO_VRAM ||
        luma->level[0].tile_mode != 0x10 ||
        chroma->level[0].tile_mode != 0x10 || luma->level[0].pitch != pitch ||
        chroma->level[0].pitch != pitch)
@@ -270,15 +270,19 @@ surface_usable(const struct nvenc_codec *codec,
       chroma->base.offset + chroma->level[0].offset;
    const uint64_t chroma_bytes =
       (uint64_t)pitch * align(coded_height / 2, 16);
-   if ((luma->base.bo->offset | luma_offset | chroma_offset) & 0xff ||
-       chroma_offset < luma_offset + (uint64_t)pitch * coded_height ||
-       chroma_offset + chroma_bytes > luma->base.bo->size)
+   if ((luma->base.bo->offset | chroma->base.bo->offset | luma_offset | chroma_offset) & 0xff ||
+       luma_offset + (uint64_t)pitch * coded_height > luma->base.bo->size ||
+       chroma_offset + chroma_bytes > chroma->base.bo->size ||
+       (luma->base.bo == chroma->base.bo &&
+        chroma_offset < luma_offset + (uint64_t)pitch * coded_height))
       return false;
 
    surface->handle = luma->base.bo->handle;
    surface->address = luma->base.bo->offset;
    surface->luma_offset = luma_offset;
    surface->chroma_offset = chroma_offset;
+   surface->chroma_handle = chroma->base.bo->handle;
+   surface->chroma_address = chroma->base.bo->offset;
    surface->pitch = pitch;
    return true;
 }

@@ -64,6 +64,11 @@ struct nouveau_screen {
       unsigned profiles_present;
    } firmware_info;
 
+   struct {
+      bool probed;
+      bool supported;
+   } nvdec;
+
    struct disk_cache *disk_shader_cache;
 
    bool has_svm;

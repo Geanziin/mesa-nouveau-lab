@@ -32,9 +32,7 @@
 #include "nouveau_context.h"
 #include "nouveau_vp3_video.h"
 #include "nouveau_nvenc.h"
-#ifdef HAVE_NOUVEAU_VK_VIDEO
-#include "nouveau_vk_video.h"
-#endif
+#include "nouveau_nvdec.h"
 
 #include "util/u_video.h"
 #include "util/format/u_format.h"
@@ -446,11 +444,9 @@ nouveau_vp3_screen_get_video_param(struct pipe_screen *pscreen,
 {
    if (entrypoint == PIPE_VIDEO_ENTRYPOINT_ENCODE)
       return nouveau_nvenc_param(nouveau_screen(pscreen), profile, param);
-#ifdef HAVE_NOUVEAU_VK_VIDEO
    if (profile != PIPE_VIDEO_PROFILE_UNKNOWN &&
-       nouveau_vk_video_enabled(nouveau_screen(pscreen)))
-      return nouveau_vk_video_get_param(nouveau_screen(pscreen), profile, entrypoint, param);
-#endif
+       nouveau_nvdec_enabled(nouveau_screen(pscreen)))
+      return nouveau_nvdec_get_param(nouveau_screen(pscreen), profile, entrypoint, param);
    const int chipset = nouveau_screen(pscreen)->device->chipset;
    /* Feature Set B = vp3, C = vp4, D = vp5 */
    const bool vp3 = chipset < 0xa3 || chipset == 0xaa || chipset == 0xac;

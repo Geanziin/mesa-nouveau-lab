@@ -4,7 +4,7 @@
 subdir('headers')
 subdir('drm')
 subdir('winsys')
-if with_nouveau_vk
+if with_any_nouveau
   subdir('rust')
   subdir('nil')
   subdir('compiler')

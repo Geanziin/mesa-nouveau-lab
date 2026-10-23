@@ -1,0 +1,56 @@
+ffmpeg version n9.0.2 Copyright (c) 2000-2026 the FFmpeg developers
+  built with gcc 16 (GCC)
+  configuration: --prefix=/usr --disable-debug --disable-static --disable-stripping --enable-amf --enable-avisynth --enable-cuda-llvm --enable-lto --enable-fontconfig --enable-frei0r --enable-gmp --enable-gnutls --enable-gpl --enable-ladspa --enable-lcms2 --enable-libaom --enable-libass --enable-libbluray --enable-libbs2b --enable-libdav1d --enable-libdrm --enable-libdvdnav --enable-libdvdread --enable-libfreetype --enable-libfribidi --enable-libgsm --enable-libharfbuzz --enable-libiec61883 --enable-libjack --enable-libjxl --enable-libmodplug --enable-libmp3lame --enable-libopencore_amrnb --enable-libopencore_amrwb --enable-libopenjpeg --enable-libopenmpt --enable-libopus --enable-libplacebo --enable-libpulse --enable-librav1e --enable-librsvg --enable-librubberband --enable-libsnappy --enable-libsoxr --enable-libspeex --enable-libsrt --enable-libssh --enable-libsvtav1 --enable-libtheora --enable-libv4l2 --enable-libvidstab --enable-libvmaf --enable-libvorbis --enable-libvpl --enable-libvpx --enable-libwebp --enable-libx264 --enable-libx265 --enable-libxcb --enable-libxml2 --enable-libxvid --enable-libzimg --enable-libzmq --enable-nvdec --enable-nvenc --enable-opencl --enable-opengl --enable-shared --enable-vapoursynth --enable-version3 --enable-vulkan --disable-decoder=magicyuv
+  libavutil      61.  1.102 / 61.  1.102
+  libavcodec     63.  1.102 / 63.  1.102
+  libavformat    63.  1.102 / 63.  1.102
+  libavdevice    63.  1.102 / 63.  1.102
+  libavfilter    12.  1.102 / 12.  1.102
+  libswscale     10.  1.102 / 10.  1.102
+  libswresample   7.  1.102 /  7.  1.102
+[h264 @ 0x65179bb70080] Reinit context to 3840x2160, pix_fmt: yuv420p
+Input #0, h264, from '/home/gean/Documents/nouveau-lab/artifacts/native-video-verified-20261023/high-4k.h264':
+  Duration: N/A, bitrate: N/A
+  Stream #0:0: Video: h264 (High), 1 reference frame, yuv420p(progressive, left), 3840x2160 [SAR 1:1 DAR 16:9], 25 fps, 48 tbr, 1200k tbn
+[out#0/rawvideo @ 0x65179bb71580] No explicit maps, mapping streams automatically...
+[vost#0:0/rawvideo @ 0x65179bb70d00] Created video stream from input stream 0:0
+Stream mapping:
+  Stream #0:0 -> #0:0 (h264 (native) -> rawvideo (native))
+[vost#0:0/rawvideo @ 0x65179bb70d00] Starting thread...
+[vf#0:0 @ 0x65179bc122c0] Starting thread...
+[vist#0:0/h264 @ 0x65179bb6f480] [dec:h264 @ 0x65179bc0fa00] Starting thread...
+[in#0/h264 @ 0x65179bb6ec80] Starting thread...
+[in#0/h264 @ 0x65179bb6ec80] EOF while reading input
+[in#0/h264 @ 0x65179bb6ec80] Terminating thread with return code 0 (success)
+[h264 @ 0x65179bc0fc00] Reinit context to 3840x2160, pix_fmt: yuv420p
+[graph -1 input from stream 0:0 @ 0x716320001700] w:3840 h:2160 pixfmt:yuv420p tb:1/1200000 fr:24/1 sar:1/1 csp:unknown range:unknown alpha:unspecified
+[graph -1 input from stream 0:0 @ 0x716320001700] video frame properties congruent with link at pts_time: 0
+Output #0, rawvideo, to '/home/gean/Documents/nouveau-lab/artifacts/native-video-verified-20261023/high-4k-cpu.yuv':
+  Metadata:
+    encoder         : Lavf63.1.102
+  Stream #0:0: Video: rawvideo, 1 reference frame (I420 / 0x30323449), yuv420p(progressive, left), 3840x2160 [SAR 1:1 DAR 16:9], q=2-31, 2388787 kb/s, 24 fps, 24 tbn
+    Metadata:
+      encoder         : Lavc63.1.102 rawvideo
+[out#0/rawvideo @ 0x65179bb71580] Starting thread...
+[vist#0:0/h264 @ 0x65179bb6f480] [dec:h264 @ 0x65179bc0fa00] Decoder thread received EOF packet
+[vist#0:0/h264 @ 0x65179bb6f480] [dec:h264 @ 0x65179bc0fa00] Decoder returned EOF, finishing
+[vf#0:0 @ 0x65179bc122c0] Filtergraph returned EOF, finishing
+[vf#0:0 @ 0x65179bc122c0] All consumers returned EOF
+[vist#0:0/h264 @ 0x65179bb6f480] [dec:h264 @ 0x65179bc0fa00] Terminating thread with return code 0 (success)
+[vf#0:0 @ 0x65179bc122c0] Terminating thread with return code 0 (success)
+[vost#0:0/rawvideo @ 0x65179bb70d00] [enc:rawvideo @ 0x65179bb71080] Encoder thread received EOF
+[vost#0:0/rawvideo @ 0x65179bb70d00] Terminating thread with return code 0 (success)
+[out#0/rawvideo @ 0x65179bb71580] All streams finished
+[out#0/rawvideo @ 0x65179bb71580] Terminating thread with return code 0 (success)
+[AVIOContext @ 0x65179bb99080] Statistics: 99532800 bytes written, 0 seeks, 380 writeouts
+[out#0/rawvideo @ 0x65179bb71580] Output file #0 (/home/gean/Documents/nouveau-lab/artifacts/native-video-verified-20261023/high-4k-cpu.yuv):
+[out#0/rawvideo @ 0x65179bb71580]   Output stream #0:0 (video): 8 frames encoded; 8 packets muxed (99532800 bytes); 
+[out#0/rawvideo @ 0x65179bb71580]   Total: 8 packets (99532800 bytes) muxed
+[out#0/rawvideo @ 0x65179bb71580] video:97200KiB audio:0KiB subtitle:0KiB other streams:0KiB global headers:0KiB muxing overhead: 0.000000%
+frame=    8 fps=0.0 q=-0.0 Lsize=   97200KiB time=00:00:00.33 bitrate=2388789.6kbits/s speed=1.24x elapsed=0:00:00.26    
+[in#0/h264 @ 0x65179bb6ec80] Input file #0 (/home/gean/Documents/nouveau-lab/artifacts/native-video-verified-20261023/high-4k.h264):
+[in#0/h264 @ 0x65179bb6ec80]   Input stream #0:0 (video): 8 packets read (1324239 bytes); 8 frames decoded; 0 decode errors; 
+[in#0/h264 @ 0x65179bb6ec80]   Total: 8 packets (1324239 bytes) demuxed
+[AVIOContext @ 0x65179bb77800] Statistics: 1324239 bytes read, 0 seeks
+
+Exiting with exit code 0

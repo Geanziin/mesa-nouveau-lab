@@ -132,8 +132,8 @@ executable(
 nouveau_util_py = files('util.py')
 nouveau_util_py_path = meson.current_source_dir()
 
-# Only generate Rust bindings for NVK
-if with_nouveau_vk
+# NAK is also used by Gallium, independently of whether NVK is built.
+if with_any_nouveau
   cl_rs_generated = []
   foreach cl : nv_classes
     cl_rs_generated += custom_target(

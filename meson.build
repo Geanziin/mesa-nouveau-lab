@@ -931,7 +931,7 @@ with_virtgpu_kumquat = get_option('virtgpu_kumquat') and with_gfxstream_vk
 
 with_any_rust = [
   with_gallium_rusticl,
-  with_nouveau_vk,
+  with_any_nouveau,
   with_panfrost_rust,
   with_tools.contains('etnaviv'),
   with_virtgpu_kumquat,

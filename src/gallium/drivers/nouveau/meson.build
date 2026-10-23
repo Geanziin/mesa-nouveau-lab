@@ -162,8 +162,10 @@ files_libnouveau = files(
   'nvc0/nve4_p2mf.xml.h',
 )
 
-nouveau_vk_video_args = []
+nouveau_video_args = []
 files_libnouveau += files('nouveau_nvenc.c', 'nouveau_nvenc.h')
+files_libnouveau += files('nouveau_nvdec.c', 'nouveau_nvdec.h',
+                          'nouveau_nvdec_h264.c', 'nouveau_nvdec_h264.h')
 if get_option('nouveau-nvenc')
   files_libnouveau += files(
     'nouveau_nvenc_backend.c', 'nouveau_nvenc_backend.h',
@@ -172,12 +174,7 @@ if get_option('nouveau-nvenc')
     'nouveau_nvenc_rc.c', 'nouveau_nvenc_rc.h',
     'nouveau_nvenc_tables.c', 'nouveau_nvenc_tables.h',
   )
-  nouveau_vk_video_args += '-DHAVE_NOUVEAU_NVENC'
-endif
-if with_nouveau_vk
-  files_libnouveau += files('nouveau_vk_video.c', 'nouveau_vk_video.h',
-                           'nouveau_vk_video_h264.c', 'nouveau_vk_video_h264.h')
-  nouveau_vk_video_args += '-DHAVE_NOUVEAU_VK_VIDEO'
+  nouveau_video_args += '-DHAVE_NOUVEAU_NVENC'
 endif
 
 libnouveau = static_library(
@@ -188,7 +185,7 @@ libnouveau = static_library(
     include_directories('../../../nouveau/headers/nvidia/video'),
   ],
   gnu_symbol_visibility : 'hidden',
-  c_args : nouveau_vk_video_args,
+  c_args : nouveau_video_args,
   link_with : [libnouveauwinsys],
   dependencies : [
     dep_libdrm,
@@ -206,3 +203,14 @@ driver_nouveau = declare_dependency(
   dependencies : [idep_nir, idep_nouveau_codegen, idep_nak],
   link_with : [libnouveau_codegen, libnouveau],
 )
+
+if with_tests
+  test('nouveau_nvdec_h264', executable(
+    'nouveau_nvdec_h264_test',
+    ['tests/nvdec_h264.c', 'nouveau_nvdec_h264.c'],
+    c_args : ['-UNDEBUG'],
+    include_directories : [inc_src, inc_include, inc_gallium, inc_gallium_aux,
+                           include_directories('../../../nouveau/headers/nvidia/video')],
+    dependencies : [idep_mesautil],
+  ))
+endif

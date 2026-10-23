@@ -33,6 +33,9 @@ struct nvenc_surface {
    uint64_t address;
    uint32_t luma_offset;
    uint32_t chroma_offset;
+   /* Gallium video planes need not share one GEM object. */
+   uint32_t chroma_handle;
+   uint64_t chroma_address;
    unsigned pitch;
 };
 

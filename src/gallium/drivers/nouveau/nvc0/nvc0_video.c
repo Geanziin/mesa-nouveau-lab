@@ -22,9 +22,7 @@
 
 #include "nvc0/nvc0_video.h"
 #include "nouveau_nvenc.h"
-#ifdef HAVE_NOUVEAU_VK_VIDEO
-#include "nouveau_vk_video.h"
-#endif
+#include "nouveau_nvdec.h"
 
 #include "util/u_sampler.h"
 #include "util/format/u_format.h"
@@ -98,10 +96,8 @@ nvc0_create_decoder(struct pipe_context *context,
 {
    if (templ->entrypoint == PIPE_VIDEO_ENTRYPOINT_ENCODE)
       return nouveau_nvenc_create(context, templ);
-#ifdef HAVE_NOUVEAU_VK_VIDEO
-   if (nouveau_vk_video_enabled(nouveau_screen(context->screen)))
-      return nouveau_vk_video_create(context, templ);
-#endif
+   if (nouveau_nvdec_enabled(nouveau_screen(context->screen)))
+      return nouveau_nvdec_create(context, templ);
    struct nvc0_context *nvc0 = nvc0_context(context);
    struct nouveau_screen *screen = &nvc0->screen->base;
    struct nouveau_vp3_decoder *dec;
@@ -359,17 +355,10 @@ fail:
 
 struct pipe_video_buffer *
 nvc0_video_buffer_create(struct pipe_context *pipe,
-                          const struct pipe_video_buffer *templat)
+                           const struct pipe_video_buffer *templat)
 {
-#ifdef HAVE_NOUVEAU_VK_VIDEO
-   if (nouveau_vk_video_enabled(nouveau_screen(pipe->screen)) &&
-       debug_get_bool_option("NOUVEAU_VK_VIDEO_ZERO_COPY", true) &&
-       templat->buffer_format == PIPE_FORMAT_NV12 && !templat->interlaced &&
-       nouveau_vk_video_get_param(nouveau_screen(pipe->screen),
-                                  PIPE_VIDEO_PROFILE_MPEG4_AVC_HIGH,
-                                  PIPE_VIDEO_ENTRYPOINT_BITSTREAM, PIPE_VIDEO_CAP_SUPPORTED))
-      return nouveau_vk_video_buffer_create(pipe, templat);
-#endif
+   if (nouveau_nvdec_enabled(nouveau_screen(pipe->screen)))
+      return nouveau_nvdec_buffer_create(pipe, templat);
    return nouveau_vp3_video_buffer_create(
          pipe, templat, NVC0_RESOURCE_FLAG_VIDEO);
 }

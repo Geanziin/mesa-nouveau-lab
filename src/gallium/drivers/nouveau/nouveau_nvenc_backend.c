@@ -515,7 +515,7 @@ push_frame(struct nvenc_backend *s, struct slot *slot,
    struct buffer *fence = &slot->buffers[SLOT_FENCE];
    const uint64_t luma = surface ? surface->address + surface->luma_offset
                                  : slot->buffers[SLOT_INPUT_Y].info.offset;
-   const uint64_t chroma = surface ? surface->address + surface->chroma_offset
+   const uint64_t chroma = surface ? surface->chroma_address + surface->chroma_offset
                                    : slot->buffers[SLOT_INPUT_UV].info.offset;
    const unsigned out_y = out_recon == 0 ? SHARED_RECON_Y_0 : SHARED_RECON_Y_1;
    const unsigned out_uv = out_recon == 0 ? SHARED_RECON_UV_0 : SHARED_RECON_UV_1;
@@ -563,8 +563,11 @@ push_frame(struct nvenc_backend *s, struct slot *slot,
    ADD_BO(fence, NOUVEAU_GEM_DOMAIN_GART, false);
    ADD_BO(&slot->buffers[SLOT_CONFIG], NOUVEAU_GEM_DOMAIN_GART, true);
    if (surface) {
-      list[count++] = (struct bo_entry){surface->handle, surface->address,
-                                        NOUVEAU_GEM_DOMAIN_VRAM, true};
+       list[count++] = (struct bo_entry){surface->handle, surface->address,
+                                         NOUVEAU_GEM_DOMAIN_VRAM, true};
+      if (surface->chroma_handle != surface->handle)
+         list[count++] = (struct bo_entry){surface->chroma_handle, surface->chroma_address,
+                                           NOUVEAU_GEM_DOMAIN_VRAM, true};
    } else {
       ADD_BO(&slot->buffers[SLOT_INPUT_Y], NOUVEAU_GEM_DOMAIN_VRAM, true);
       ADD_BO(&slot->buffers[SLOT_INPUT_UV], NOUVEAU_GEM_DOMAIN_VRAM, true);
@@ -613,7 +616,7 @@ push_frame(struct nvenc_backend *s, struct slot *slot,
    for (unsigned i = 0; i < count; i++) {
       if (bos[i].presumed.valid && bos[i].presumed.offset == list[i].offset)
          continue;
-      if (surface && list[i].handle == surface->handle)
+      if (surface && (list[i].handle == surface->handle || list[i].handle == surface->chroma_handle))
          slot->stale = true;
       else
          return -EIO;
@@ -670,7 +673,9 @@ submit(struct nvenc_backend *s, const uint8_t *y, unsigned y_pitch,
    if (slot->config_qp != qp && (ret = make_config(s, slot, qp)))
       goto done;
    if (surface) {
-      ret = surface_wait(s->fd, surface->handle);
+       ret = surface_wait(s->fd, surface->handle);
+      if (!ret && surface->chroma_handle != surface->handle)
+         ret = surface_wait(s->fd, surface->chroma_handle);
       if (ret)
          goto done;
    } else {
@@ -767,10 +772,14 @@ nvenc_backend_submit_surface(struct nvenc_backend *s,
                              bool is_p_frame,
                              struct nvenc_ticket *ticket)
 {
-   if (!s || !surface || !ticket || qp > 51 || !surface->handle ||
+   if (!s || !surface || !ticket || qp > 51 || !surface->handle || !surface->chroma_handle ||
        surface->pitch != s->pitch || (surface->address & 0xff) ||
+       (surface->chroma_address & 0xff) ||
        (surface->luma_offset & 0xff) || (surface->chroma_offset & 0xff))
       return -EINVAL;
+   mesa_log(MESA_LOG_DEBUG, MESA_LOG_TAG,
+            "direct Gallium input: luma GEM %u, chroma GEM %u",
+            surface->handle, surface->chroma_handle);
    return submit(s, NULL, 0, NULL, 0, surface, qp, is_p_frame, ticket);
 }
 

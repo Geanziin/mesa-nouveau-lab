@@ -1,0 +1,103 @@
+ffmpeg version n9.0.2 Copyright (c) 2000-2026 the FFmpeg developers
+  built with gcc 16 (GCC)
+  configuration: --prefix=/usr --disable-debug --disable-static --disable-stripping --enable-amf --enable-avisynth --enable-cuda-llvm --enable-lto --enable-fontconfig --enable-frei0r --enable-gmp --enable-gnutls --enable-gpl --enable-ladspa --enable-lcms2 --enable-libaom --enable-libass --enable-libbluray --enable-libbs2b --enable-libdav1d --enable-libdrm --enable-libdvdnav --enable-libdvdread --enable-libfreetype --enable-libfribidi --enable-libgsm --enable-libharfbuzz --enable-libiec61883 --enable-libjack --enable-libjxl --enable-libmodplug --enable-libmp3lame --enable-libopencore_amrnb --enable-libopencore_amrwb --enable-libopenjpeg --enable-libopenmpt --enable-libopus --enable-libplacebo --enable-libpulse --enable-librav1e --enable-librsvg --enable-librubberband --enable-libsnappy --enable-libsoxr --enable-libspeex --enable-libsrt --enable-libssh --enable-libsvtav1 --enable-libtheora --enable-libv4l2 --enable-libvidstab --enable-libvmaf --enable-libvorbis --enable-libvpl --enable-libvpx --enable-libwebp --enable-libx264 --enable-libx265 --enable-libxcb --enable-libxml2 --enable-libxvid --enable-libzimg --enable-libzmq --enable-nvdec --enable-nvenc --enable-opencl --enable-opengl --enable-shared --enable-vapoursynth --enable-version3 --enable-vulkan --disable-decoder=magicyuv
+  libavutil      61.  1.102 / 61.  1.102
+  libavcodec     63.  1.102 / 63.  1.102
+  libavformat    63.  1.102 / 63.  1.102
+  libavdevice    63.  1.102 / 63.  1.102
+  libavfilter    12.  1.102 / 12.  1.102
+  libswscale     10.  1.102 / 10.  1.102
+  libswresample   7.  1.102 /  7.  1.102
+[VAAPI @ 0x647475e2ac40] libva: VA-API version 1.24.0
+[VAAPI @ 0x647475e2ac40] libva: User environment variable requested driver 'nvgd'
+[VAAPI @ 0x647475e2ac40] libva: Trying to open /tmp/opencode/nvgd-native-video-only/src/gallium/targets/dri/nvgd_drv_video.so
+[VAAPI @ 0x647475e2ac40] libva: Found init function __vaDriverInit_1_24
+[VAAPI @ 0x647475e2ac40] libva: va_openDriver() returns 0
+[VAAPI @ 0x647475e2ac40] Initialised VAAPI connection: version 1.24
+[VAAPI @ 0x647475e2ac40] VAAPI driver: Mesa Gallium driver 27.0.0-devel for NVIDIA GeForce RTX 3050 (GA107) (nvgd, ga107, DRM 65540.3).
+[VAAPI @ 0x647475e2ac40] Driver not found in known nonstandard list, using standard behaviour.
+[Parsed_testsrc2_0 @ 0x647475e6f980] size:192x128 rate:24/1 duration:-1.000000 sar:1/1
+Input #0, lavfi, from 'testsrc2=size=192x128:rate=24':
+  Duration: N/A, start: 0.000000, bitrate: N/A
+  Stream #0:0: Video: wrapped_avframe, 1 reference frame, yuv420p, 192x128 [SAR 1:1 DAR 3:2], 24 fps, 24 tbr, 24 tbn
+[out#0/h264 @ 0x647475e802c0] No explicit maps, mapping streams automatically...
+[vost#0:0/h264_vaapi @ 0x647475e80640] Created video stream from input stream 0:0
+Stream mapping:
+  Stream #0:0 -> #0:0 (wrapped_avframe (native) -> h264 (h264_vaapi))
+[vost#0:0/h264_vaapi @ 0x647475e80640] Starting thread...
+[vf#0:0 @ 0x647475e83440] Starting thread...
+[vist#0:0/wrapped_avframe @ 0x647475e80140] [dec:wrapped_avframe @ 0x647475e84ac0] Starting thread...
+[in#0/lavfi @ 0x647475e70580] Starting thread...
+[graph -1 input from stream 0:0 @ 0x765224004700] w:192 h:128 pixfmt:yuv420p tb:1/24 fr:24/1 sar:1/1 csp:unknown range:unknown alpha:unspecified
+[auto_scale_0 @ 0x7652240062c0] w:iw h:ih flags:'' interl:0
+[Parsed_format_0 @ 0x765224003d40] auto-inserting filter 'auto_scale_0' between the filter 'graph -1 input from stream 0:0' and the filter 'Parsed_format_0'
+[auto_scale_0 @ 0x7652240062c0] w:192 h:128 fmt:yuv420p csp:unknown range:unknown sar:1/1 -> w:192 h:128 fmt:nv12 csp:unknown range:tv sar:1/1 flags:0x00000004
+[auto_scale_0 @ 0x7652240062c0] [framesync @ 0x7652240063d0] Selected 1/24 time base
+[auto_scale_0 @ 0x7652240062c0] [framesync @ 0x7652240063d0] Sync level 1
+[graph -1 input from stream 0:0 @ 0x765224004700] video frame properties congruent with link at pts_time: 0
+[vost#0:0/h264_vaapi @ 0x647475e80640] [enc:h264_vaapi @ 0x647475e80b40] Using input frames context (format vaapi) with h264_vaapi encoder.
+[h264_vaapi @ 0x647475e80bc0] Input surface format is nv12.
+[h264_vaapi @ 0x647475e80bc0] Using VAAPI profile VAProfileH264Main (6).
+[h264_vaapi @ 0x647475e80bc0] Using VAAPI entrypoint VAEntrypointEncSlice (6).
+[h264_vaapi @ 0x647475e80bc0] Using VAAPI render target format YUV420 (0x1).
+[h264_vaapi @ 0x647475e80bc0] RC mode: CQP.
+[h264_vaapi @ 0x647475e80bc0] Block Level bitrate control: OFF.
+[h264_vaapi @ 0x647475e80bc0] RC quality: 24.
+[h264_vaapi @ 0x647475e80bc0] RC framerate: 24/1 (24.00 fps).
+[h264_vaapi @ 0x647475e80bc0] Driver does not report any additional prediction constraints.
+[h264_vaapi @ 0x647475e80bc0] Using intra and P-frames (supported references: 1 / 0).
+[h264_vaapi @ 0x647475e80bc0] Driver does not support some wanted packed headers (wanted 0xd, found 0).
+[h264_vaapi @ 0x647475e80bc0] Using level 1.1.
+Output #0, h264, to '/home/gean/Documents/nouveau-lab/artifacts/native-video-verified-20261023/encode-main-192x128.h264':
+  Metadata:
+    encoder         : Lavf63.1.102
+  Stream #0:0: Video: h264 (Main), 1 reference frame, nv12(tv, progressive), 192x128 [SAR 1:1 DAR 3:2], q=2-31, 24 fps, 24 tbn
+    Metadata:
+      encoder         : Lavc63.1.102 h264_vaapi
+[out#0/h264 @ 0x647475e802c0] Starting thread...
+nouveau-nvenc: debug: direct Gallium input: luma GEM 17, chroma GEM 18
+nouveau-nvenc: debug: direct Gallium input: luma GEM 58, chroma GEM 59
+nouveau-nvenc: debug: direct Gallium input: luma GEM 60, chroma GEM 61
+nouveau-nvenc: debug: direct Gallium input: luma GEM 17, chroma GEM 18
+nouveau-nvenc: debug: direct Gallium input: luma GEM 58, chroma GEM 59
+nouveau-nvenc: debug: direct Gallium input: luma GEM 60, chroma GEM 61
+nouveau-nvenc: debug: direct Gallium input: luma GEM 17, chroma GEM 18
+nouveau-nvenc: debug: direct Gallium input: luma GEM 58, chroma GEM 59
+nouveau-nvenc: debug: direct Gallium input: luma GEM 60, chroma GEM 61
+nouveau-nvenc: debug: direct Gallium input: luma GEM 58, chroma GEM 59
+nouveau-nvenc: debug: direct Gallium input: luma GEM 17, chroma GEM 18
+nouveau-nvenc: debug: direct Gallium input: luma GEM 60, chroma GEM 61
+nouveau-nvenc: debug: direct Gallium input: luma GEM 58, chroma GEM 59
+nouveau-nvenc: debug: direct Gallium input: luma GEM 17, chroma GEM 18
+nouveau-nvenc: debug: direct Gallium input: luma GEM 60, chroma GEM 61
+nouveau-nvenc: debug: direct Gallium input: luma GEM 58, chroma GEM 59
+nouveau-nvenc: debug: direct Gallium input: luma GEM 17, chroma GEM 18
+nouveau-nvenc: debug: direct Gallium input: luma GEM 60, chroma GEM 61
+nouveau-nvenc: debug: direct Gallium input: luma GEM 58, chroma GEM 59
+nouveau-nvenc: debug: direct Gallium input: luma GEM 17, chroma GEM 18
+nouveau-nvenc: debug: direct Gallium input: luma GEM 60, chroma GEM 61
+nouveau-nvenc: debug: direct Gallium input: luma GEM 58, chroma GEM 59
+nouveau-nvenc: debug: direct Gallium input: luma GEM 17, chroma GEM 18
+nouveau-nvenc: debug: direct Gallium input: luma GEM 60, chroma GEM 61
+[vost#0:0/h264_vaapi @ 0x647475e80640] [enc:h264_vaapi @ 0x647475e80b40] Encoder thread received EOF
+[vf#0:0 @ 0x647475e83440] All consumers returned EOF
+[vost#0:0/h264_vaapi @ 0x647475e80640] Terminating thread with return code 0 (success)
+[out#0/h264 @ 0x647475e802c0] All streams finished
+[out#0/h264 @ 0x647475e802c0] Terminating thread with return code 0 (success)
+[vf#0:0 @ 0x647475e83440] Terminating thread with return code 0 (success)
+[vist#0:0/wrapped_avframe @ 0x647475e80140] [dec:wrapped_avframe @ 0x647475e84ac0] Decoder returned EOF, finishing
+[vist#0:0/wrapped_avframe @ 0x647475e80140] [dec:wrapped_avframe @ 0x647475e84ac0] Terminating thread with return code 0 (success)
+[vist#0:0/wrapped_avframe @ 0x647475e80140] All consumers of this stream are done
+[in#0/lavfi @ 0x647475e70580] All consumers are done
+[in#0/lavfi @ 0x647475e70580] Terminating thread with return code 0 (success)
+[AVIOContext @ 0x647475e86340] Statistics: 90217 bytes written, 0 seeks, 1 writeouts
+[out#0/h264 @ 0x647475e802c0] Output file #0 (/home/gean/Documents/nouveau-lab/artifacts/native-video-verified-20261023/encode-main-192x128.h264):
+[out#0/h264 @ 0x647475e802c0]   Output stream #0:0 (video): 24 frames encoded; 24 packets muxed (90217 bytes); 
+[out#0/h264 @ 0x647475e802c0]   Total: 24 packets (90217 bytes) muxed
+[out#0/h264 @ 0x647475e802c0] video:88KiB audio:0KiB subtitle:0KiB other streams:0KiB global headers:0KiB muxing overhead: 0.000000%
+frame=   24 fps=0.0 q=-0.0 Lsize=      88KiB time=00:00:01.00 bitrate= 721.7kbits/s speed=10.8x elapsed=0:00:00.09    
+[in#0/lavfi @ 0x647475e70580] Input file #0 (testsrc2=size=192x128:rate=24):
+[in#0/lavfi @ 0x647475e70580]   Input stream #0:0 (video): 37 packets read (15688 bytes); 28 frames decoded; 0 decode errors; 
+[in#0/lavfi @ 0x647475e70580]   Total: 37 packets (15688 bytes) demuxed
+
+Exiting with exit code 0
