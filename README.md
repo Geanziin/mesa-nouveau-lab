@@ -16,21 +16,32 @@ live in [nvgd-repo](https://github.com/Geanziin/nvgd-repo).
 
 ## Performance: nvgd vs. the proprietary driver (RTX 3050)
 
-Same machine, same GNOME session, `glmark2` 2023.01 at its default 800x600
-resolution.
+Same machine and GNOME/Wayland desktop. The OpenGL rows below are the existing
+`glmark2` 2023.01 measurements at its default 800x600 resolution.
 
 | Mode | nvgd | NVIDIA 615.78.08 | nvgd / NVIDIA |
 |---|---:|---:|---:|
 | `glmark2 --off-screen` (driver only, no presentation) | **35,236** | 31,803 | **1.11x** |
 | `glmark2-wayland` (windowed, native Wayland) | **9,902** | 2,653 | **3.73x** |
 | `glmark2` (windowed, X11/GLX via Xwayland) | **4,984** | 4,016 | **1.24x** |
+| `vkmark` (Vulkan, native Wayland, 800x600, immediate) | **14,076** | pending | pending |
+
+The Vulkan result is the **median of three complete vkmark 2025.01 runs**:
+14,076 / 13,401 / 14,090, measured on 2026-10-22 (UTC-03). NVIDIA's Vulkan
+measurement will be added after rebooting into that driver; no ratio is claimed
+yet. Scores from vkmark and glmark2 are **not comparable across benchmarks**,
+and neither score measures input latency.
+[Vulkan settings, raw logs and the matching NVIDIA procedure](docs/benchmarks/vulkan-2026-10-22/README.md).
 
 Setup:
 
 - GPU: GeForce RTX 3050 6 GB (GA107), PCIe 3.0 x8
 - CPU: Intel Xeon E5-2697 v3
 - OS: CachyOS, GNOME (Wayland)
-- nvgd: kernel 7.2.11 + nvgd-dkms, nvgd Mesa
+- nvgd OpenGL rows: kernel 7.2.11 + nvgd-dkms, nvgd Mesa
+- nvgd Vulkan row: kernel 7.3.0-3-cachyos, nvgd-dkms 1.0.0-20,
+  Mesa `a1c7b37fcb7b`, vkmark `1:2025.01-2.1`; fixed `B8G8R8A8Unorm`
+  format, 13 default scenes at 10 seconds each, no overlay/validation layers
 - Proprietary: kernel 6.18 LTS + `nvidia-open` 615.78.08
 
 ### Per scene (`--off-screen`)
@@ -89,6 +100,15 @@ To reproduce:
 glmark2 --off-screen
 glmark2-wayland
 glmark2
+```
+
+Vulkan (three full runs, with a three-second cube warm-up before each):
+
+```sh
+python3 docs/benchmarks/run-vkmark.py nvgd /path/to/new-nvgd-results
+# After rebooting into NVIDIA, from a Wayland desktop:
+python3 docs/benchmarks/run-vkmark.py nvidia /path/to/new-nvidia-results \
+  --reference docs/benchmarks/vulkan-2026-10-22/nvgd/environment.json
 ```
 
 ## What nvgd changes compared to Mesa

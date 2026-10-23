@@ -1,0 +1,173 @@
+Debug: WindowSystemLoader: Looking in /usr/lib/vkmark for window system plugins
+Debug: WindowSystemLoader: Loading options from /usr/lib/vkmark/display.so... ok
+Debug: WindowSystemLoader: Loading options from /usr/lib/vkmark/headless.so... ok
+Debug: WindowSystemLoader: Loading options from /usr/lib/vkmark/wayland.so... ok
+Debug: WindowSystemLoader: Loading options from /usr/lib/vkmark/xcb.so... ok
+Debug: WindowSystemLoader: Selected window system plugin /usr/lib/vkmark/wayland.so (user selection)
+Debug: linux_read_sorted_physical_devices:
+Debug:      Original order:
+Debug:            [0] NVIDIA GeForce RTX 3050 (NVK GA107)
+Debug:      Sorted order:
+Debug:            [0] NVIDIA GeForce RTX 3050 (NVK GA107)  
+Debug: Copying old device 0 into new device 0
+Debug: linux_read_sorted_physical_devices:
+Debug:      Original order:
+Debug:            [0] NVIDIA GeForce RTX 3050 (NVK GA107)
+Debug:      Sorted order:
+Debug:            [0] NVIDIA GeForce RTX 3050 (NVK GA107)  
+Debug: Copying old device 0 into new device 0
+Debug: linux_read_sorted_physical_devices:
+Debug:      Original order:
+Debug:            [0] NVIDIA GeForce RTX 3050 (NVK GA107)
+Debug:      Sorted order:
+Debug:            [0] NVIDIA GeForce RTX 3050 (NVK GA107)  
+Debug: Copying old device 0 into new device 0
+Debug: linux_read_sorted_physical_devices:
+Debug:      Original order:
+Debug:            [0] NVIDIA GeForce RTX 3050 (NVK GA107)
+Debug:      Sorted order:
+Debug:            [0] NVIDIA GeForce RTX 3050 (NVK GA107)  
+Debug: Copying old device 0 into new device 0
+Debug: Trying to use first supported device
+Debug: First supported device chosen
+Debug: VulkanState: Using queue family index 0 for WSI operations
+Debug: VulkanState: Using queue family index 0 for rendering
+Debug: Inserted device layer "VK_LAYER_KHRONOS_validation" (/usr/lib/libVkLayer_khronos_validation.so)
+Debug: Failed to find vkGetDeviceProcAddr in layer "/usr/lib/libVkLayer_MESA_device_select.so"
+Debug: vkCreateDevice layer callstack setup to:
+Debug:    <Application>
+Debug:      ||
+Debug:    <Loader>
+Debug:      ||
+Debug:    VK_LAYER_KHRONOS_validation
+Debug:            Type: Explicit
+Debug:            Enabled By: By the Application
+Debug:            Manifest: /usr/share/vulkan/explicit_layer.d/VkLayer_khronos_validation.json
+Debug:            Library:  /usr/lib/libVkLayer_khronos_validation.so
+Debug:      ||
+Debug:    <Device>
+Debug:        Using "NVIDIA GeForce RTX 3050 (NVK GA107)" with driver: "/usr/lib/libvulkan_nouveau.so"
+Debug: SwapchainWindowSystem: Available surface format R16G16B16A16Sfloat
+Debug: SwapchainWindowSystem: Available surface format R16G16B16A16Unorm
+Debug: SwapchainWindowSystem: Available surface format A2R10G10B10UnormPack32
+Debug: SwapchainWindowSystem: Available surface format A2B10G10R10UnormPack32
+Debug: SwapchainWindowSystem: Available surface format B8G8R8A8Srgb
+Debug: SwapchainWindowSystem: Available surface format B8G8R8A8Unorm
+Debug: SwapchainWindowSystem: Available surface format R8G8B8A8Srgb
+Debug: SwapchainWindowSystem: Available surface format R8G8B8A8Unorm
+Debug: SwapchainWindowSystem: Available surface format R5G6B5UnormPack16
+Debug: SwapchainWindowSystem: Available surface format R16G16B16A16Sfloat
+Debug: SwapchainWindowSystem: Available surface format R16G16B16A16Unorm
+Debug: SwapchainWindowSystem: Available surface format A2R10G10B10UnormPack32
+Debug: SwapchainWindowSystem: Available surface format A2B10G10R10UnormPack32
+Debug: SwapchainWindowSystem: Available surface format B8G8R8A8Srgb
+Debug: SwapchainWindowSystem: Available surface format B8G8R8A8Unorm
+Debug: SwapchainWindowSystem: Available surface format R8G8B8A8Srgb
+Debug: SwapchainWindowSystem: Available surface format R8G8B8A8Unorm
+Debug: SwapchainWindowSystem: Available surface format R5G6B5UnormPack16
+Debug: SwapchainWindowSystem: Available surface format R16G16B16A16Sfloat
+Debug: SwapchainWindowSystem: Available surface format R16G16B16A16Unorm
+Debug: SwapchainWindowSystem: Available surface format A2R10G10B10UnormPack32
+Debug: SwapchainWindowSystem: Available surface format A2B10G10R10UnormPack32
+Debug: SwapchainWindowSystem: Available surface format B8G8R8A8Srgb
+Debug: SwapchainWindowSystem: Available surface format B8G8R8A8Unorm
+Debug: SwapchainWindowSystem: Available surface format R8G8B8A8Srgb
+Debug: SwapchainWindowSystem: Available surface format R8G8B8A8Unorm
+Debug: SwapchainWindowSystem: Available surface format R5G6B5UnormPack16
+Debug: SwapchainWindowSystem: Available surface format R16G16B16A16Sfloat
+Debug: SwapchainWindowSystem: Available surface format R16G16B16A16Unorm
+Debug: SwapchainWindowSystem: Available surface format A2R10G10B10UnormPack32
+Debug: SwapchainWindowSystem: Available surface format A2B10G10R10UnormPack32
+Debug: SwapchainWindowSystem: Available surface format B8G8R8A8Srgb
+Debug: SwapchainWindowSystem: Available surface format B8G8R8A8Unorm
+Debug: SwapchainWindowSystem: Available surface format R8G8B8A8Srgb
+Debug: SwapchainWindowSystem: Available surface format R8G8B8A8Unorm
+Debug: SwapchainWindowSystem: Available surface format R5G6B5UnormPack16
+Debug: SwapchainWindowSystem: Available surface format R16G16B16A16Sfloat
+Debug: SwapchainWindowSystem: Available surface format R16G16B16A16Unorm
+Debug: SwapchainWindowSystem: Available surface format A2R10G10B10UnormPack32
+Debug: SwapchainWindowSystem: Available surface format A2B10G10R10UnormPack32
+Debug: SwapchainWindowSystem: Available surface format B8G8R8A8Srgb
+Debug: SwapchainWindowSystem: Available surface format B8G8R8A8Unorm
+Debug: SwapchainWindowSystem: Available surface format R8G8B8A8Srgb
+Debug: SwapchainWindowSystem: Available surface format R8G8B8A8Unorm
+Debug: SwapchainWindowSystem: Available surface format R5G6B5UnormPack16
+Debug: SwapchainWindowSystem: Available surface format R16G16B16A16Sfloat
+Debug: SwapchainWindowSystem: Available surface format R16G16B16A16Unorm
+Debug: SwapchainWindowSystem: Available surface format A2R10G10B10UnormPack32
+Debug: SwapchainWindowSystem: Available surface format A2B10G10R10UnormPack32
+Debug: SwapchainWindowSystem: Available surface format B8G8R8A8Srgb
+Debug: SwapchainWindowSystem: Available surface format B8G8R8A8Unorm
+Debug: SwapchainWindowSystem: Available surface format R8G8B8A8Srgb
+Debug: SwapchainWindowSystem: Available surface format R8G8B8A8Unorm
+Debug: SwapchainWindowSystem: Available surface format R5G6B5UnormPack16
+Debug: SwapchainWindowSystem: Available surface format R16G16B16A16Sfloat
+Debug: SwapchainWindowSystem: Available surface format R16G16B16A16Unorm
+Debug: SwapchainWindowSystem: Available surface format A2R10G10B10UnormPack32
+Debug: SwapchainWindowSystem: Available surface format A2B10G10R10UnormPack32
+Debug: SwapchainWindowSystem: Available surface format B8G8R8A8Srgb
+Debug: SwapchainWindowSystem: Available surface format B8G8R8A8Unorm
+Debug: SwapchainWindowSystem: Available surface format R8G8B8A8Srgb
+Debug: SwapchainWindowSystem: Available surface format R8G8B8A8Unorm
+Debug: SwapchainWindowSystem: Available surface format R5G6B5UnormPack16
+Debug: SwapchainWindowSystem: Available surface format R16G16B16A16Sfloat
+Debug: SwapchainWindowSystem: Available surface format R16G16B16A16Unorm
+Debug: SwapchainWindowSystem: Available surface format A2R10G10B10UnormPack32
+Debug: SwapchainWindowSystem: Available surface format A2B10G10R10UnormPack32
+Debug: SwapchainWindowSystem: Available surface format B8G8R8A8Srgb
+Debug: SwapchainWindowSystem: Available surface format B8G8R8A8Unorm
+Debug: SwapchainWindowSystem: Available surface format R8G8B8A8Srgb
+Debug: SwapchainWindowSystem: Available surface format R8G8B8A8Unorm
+Debug: SwapchainWindowSystem: Available surface format R5G6B5UnormPack16
+Debug: SwapchainWindowSystem: Selected swapchain format B8G8R8A8Unorm
+Debug: SwapchainWindowSystem: Swapchain contains 3 images
+Info: =======================================================
+Info:     vkmark 2025.01
+Info: =======================================================
+Info:     Vendor ID:      0x10DE
+Info:     Device ID:      0x2584
+Info:     Device Name:    NVIDIA GeForce RTX 3050 (NVK GA107)
+Info:     Driver Version: 109457507
+Info:     Device UUID:    6d91855a1738e2477d25b826ea8664ac
+Info: =======================================================
+Info: [clear] duration=1:Debug: vkQueueSubmit(): pSubmits[0].pSignalSemaphores[0] (VkSemaphore 0xe000000000e) is being signaled by VkQueue 0x563e5b64fd80, but it may still be in use by VkSwapchainKHR 0x40000000004.
+Debug: Most recently acquired image indices: [0], 1.
+Debug: (Brackets mark the last use of VkSemaphore 0xe000000000e in a presentation operation.)
+Debug: Swapchain image 0 was presented but was not re-acquired, so VkSemaphore 0xe000000000e may still be in use and cannot be safely reused with image index 1.
+Debug: Hint: See https://docs.vulkan.org/guide/latest/swapchain_semaphore_reuse.html for details on swapchain semaphore reuse. Examples of possible approaches:
+Debug:    a) Use a separate semaphore per swapchain image. Index these semaphores using the index of the acquired image.
+Debug:    b) Consider the VK_KHR_swapchain_maintenance1 extension. It allows using a VkFence with the presentation operation.
+Debug: The Vulkan spec states: Each binary semaphore element of the pSignalSemaphores member of any element of pSubmits must be unsignaled when the semaphore signal operation it defines is executed on the device (https://docs.vulkan.org/spec/latest/chapters/cmdbuffers.html#VUID-vkQueueSubmit-pSignalSemaphores-00067)
+Debug: vkQueueSubmit(): pSubmits[0].pSignalSemaphores[0] (VkSemaphore 0xe000000000e) is being signaled by VkQueue 0x563e5b64fd80, but it may still be in use by VkSwapchainKHR 0x40000000004.
+Debug: Most recently acquired image indices: 0, [1], 2.
+Debug: (Brackets mark the last use of VkSemaphore 0xe000000000e in a presentation operation.)
+Debug: Swapchain image 1 was presented but was not re-acquired, so VkSemaphore 0xe000000000e may still be in use and cannot be safely reused with image index 2.
+Debug: Hint: See https://docs.vulkan.org/guide/latest/swapchain_semaphore_reuse.html for details on swapchain semaphore reuse. Examples of possible approaches:
+Debug:    a) Use a separate semaphore per swapchain image. Index these semaphores using the index of the acquired image.
+Debug:    b) Consider the VK_KHR_swapchain_maintenance1 extension. It allows using a VkFence with the presentation operation.
+Debug: The Vulkan spec states: Each binary semaphore element of the pSignalSemaphores member of any element of pSubmits must be unsignaled when the semaphore signal operation it defines is executed on the device (https://docs.vulkan.org/spec/latest/chapters/cmdbuffers.html#VUID-vkQueueSubmit-pSignalSemaphores-00067)
+Debug: vkAcquireNextImageKHR(): Semaphore must not have any pending operations.
+Debug: The Vulkan spec states: If semaphore is not VK_NULL_HANDLE, it must not have any uncompleted signal or wait operations pending (https://docs.vulkan.org/spec/latest/chapters/VK_KHR_surface/wsi.html#VUID-vkAcquireNextImageKHR-semaphore-01779)
+Debug: vkAcquireNextImageKHR(): Semaphore must not have any pending operations.
+Debug: The Vulkan spec states: If semaphore is not VK_NULL_HANDLE, it must not have any uncompleted signal or wait operations pending (https://docs.vulkan.org/spec/latest/chapters/VK_KHR_surface/wsi.html#VUID-vkAcquireNextImageKHR-semaphore-01779)
+Debug: vkAcquireNextImageKHR(): Semaphore must not have any pending operations.
+Debug: The Vulkan spec states: If semaphore is not VK_NULL_HANDLE, it must not have any uncompleted signal or wait operations pending (https://docs.vulkan.org/spec/latest/chapters/VK_KHR_surface/wsi.html#VUID-vkAcquireNextImageKHR-semaphore-01779)
+Debug: vkAcquireNextImageKHR(): Semaphore must not have any pending operations.
+Debug: The Vulkan spec states: If semaphore is not VK_NULL_HANDLE, it must not have any uncompleted signal or wait operations pending (https://docs.vulkan.org/spec/latest/chapters/VK_KHR_surface/wsi.html#VUID-vkAcquireNextImageKHR-semaphore-01779)
+Debug: vkAcquireNextImageKHR(): Semaphore must not have any pending operations.
+Debug: The Vulkan spec states: If semaphore is not VK_NULL_HANDLE, it must not have any uncompleted signal or wait operations pending (https://docs.vulkan.org/spec/latest/chapters/VK_KHR_surface/wsi.html#VUID-vkAcquireNextImageKHR-semaphore-01779)
+Debug: vkAcquireNextImageKHR(): Semaphore must not have any pending operations.
+Debug: The Vulkan spec states: If semaphore is not VK_NULL_HANDLE, it must not have any uncompleted signal or wait operations pending (https://docs.vulkan.org/spec/latest/chapters/VK_KHR_surface/wsi.html#VUID-vkAcquireNextImageKHR-semaphore-01779)
+Debug: vkAcquireNextImageKHR(): Semaphore must not have any pending operations.
+Debug: The Vulkan spec states: If semaphore is not VK_NULL_HANDLE, it must not have any uncompleted signal or wait operations pending (https://docs.vulkan.org/spec/latest/chapters/VK_KHR_surface/wsi.html#VUID-vkAcquireNextImageKHR-semaphore-01779)
+Debug: vkAcquireNextImageKHR(): Semaphore must not have any pending operations.
+Debug: The Vulkan spec states: If semaphore is not VK_NULL_HANDLE, it must not have any uncompleted signal or wait operations pending (https://docs.vulkan.org/spec/latest/chapters/VK_KHR_surface/wsi.html#VUID-vkAcquireNextImageKHR-semaphore-01779)
+Debug: vkAcquireNextImageKHR(): Semaphore must not have any pending operations.
+Debug: The Vulkan spec states: If semaphore is not VK_NULL_HANDLE, it must not have any uncompleted signal or wait operations pending (https://docs.vulkan.org/spec/latest/chapters/VK_KHR_surface/wsi.html#VUID-vkAcquireNextImageKHR-semaphore-01779)
+Debug: (Warning - This VUID has now been reported 10 times, which is the duplicate_message_limit value, this will be the last time reporting it).
+Debug: vkAcquireNextImageKHR(): Semaphore must not have any pending operations.
+Debug: The Vulkan spec states: If semaphore is not VK_NULL_HANDLE, it must not have any uncompleted signal or wait operations pending (https://docs.vulkan.org/spec/latest/chapters/VK_KHR_surface/wsi.html#VUID-vkAcquireNextImageKHR-semaphore-01779)
+ FPS: 3504 FrameTime: 0.285 ms
+Info: =======================================================
+Info:                                    vkmark Score: 3504
+Info: =======================================================
