@@ -7,6 +7,7 @@
 
 #include "nouveau_nvdec.h"
 #include "nouveau_nvdec_h264.h"
+#include "nouveau_nvdec_av1.h"
 #include "nouveau_screen.h"
 #include "nvc0/nvc0_resource.h"
 #include "nvdec_drv.h"
@@ -36,11 +37,22 @@ enum nvdec_buffer {
    NVDEC_MBHIST,
    NVDEC_HISTORY,
    NVDEC_BITSTREAM,
+   NVDEC_AV1_CDF_DEFAULT,
+   NVDEC_AV1_CDF_OUT,
+   NVDEC_AV1_TILES,
+   NVDEC_AV1_FILTER,
+   NVDEC_AV1_INTRA,
+   NVDEC_AV1_GM,
+   NVDEC_AV1_GRAIN,
+   NVDEC_AV1_TILE_STREAM,
+   NVDEC_AV1_ZERO_SEGMENT,
    NVDEC_BUFFERS,
 };
 
 struct nvdec_surface {
    struct pipe_resource *planes[2];
+   struct nouveau_bo *cdf, *segment, *tmv;
+   struct nouveau_nvdec_av1_ref av1;
 };
 
 struct nouveau_nvdec {
@@ -54,6 +66,7 @@ struct nouveau_nvdec {
    struct nouveau_nvdec_bitstream stream;
    uint32_t sequence;
    unsigned width, height;
+   enum pipe_format format;
    int error;
 };
 
@@ -107,20 +120,22 @@ nouveau_nvdec_get_param(struct nouveau_screen *screen,
                         enum pipe_video_entrypoint entrypoint,
                         enum pipe_video_cap param)
 {
+   bool av1 = profile == PIPE_VIDEO_PROFILE_AV1_MAIN &&
+               debug_get_bool_option("NOUVEAU_NVDEC_AV1", true);
    if (entrypoint != PIPE_VIDEO_ENTRYPOINT_BITSTREAM ||
        (profile != PIPE_VIDEO_PROFILE_MPEG4_AVC_BASELINE &&
         profile != PIPE_VIDEO_PROFILE_MPEG4_AVC_CONSTRAINED_BASELINE &&
         profile != PIPE_VIDEO_PROFILE_MPEG4_AVC_MAIN &&
-        profile != PIPE_VIDEO_PROFILE_MPEG4_AVC_HIGH) || !nouveau_nvdec_enabled(screen))
+         profile != PIPE_VIDEO_PROFILE_MPEG4_AVC_HIGH && !av1) || !nouveau_nvdec_enabled(screen))
       return 0;
    switch (param) {
    case PIPE_VIDEO_CAP_SUPPORTED:
    case PIPE_VIDEO_CAP_SUPPORTS_PROGRESSIVE:
       return 1;
    case PIPE_VIDEO_CAP_MIN_WIDTH:
-      return 48;
+      return av1 ? 128 : 48;
    case PIPE_VIDEO_CAP_MIN_HEIGHT:
-      return 16;
+      return av1 ? 128 : 16;
    case PIPE_VIDEO_CAP_MAX_WIDTH:
    case PIPE_VIDEO_CAP_MAX_HEIGHT:
       return 4096;
@@ -148,8 +163,12 @@ destroy_decoder(struct pipe_video_codec *codec)
    nouveau_pushbuf_del(&dec->push);
    nouveau_object_del(&dec->engine);
    nouveau_object_del(&dec->channel);
-   for (unsigned i = 0; i < NVDEC_PICTURES; i++)
+   for (unsigned i = 0; i < NVDEC_PICTURES; i++) {
       release_surface(&dec->surfaces[i]);
+      nouveau_bo_ref(NULL, &dec->surfaces[i].cdf);
+      nouveau_bo_ref(NULL, &dec->surfaces[i].segment);
+      nouveau_bo_ref(NULL, &dec->surfaces[i].tmv);
+   }
    for (unsigned i = 0; i < NVDEC_BUFFERS; i++)
       nouveau_bo_ref(NULL, &dec->buffers[i]);
    nouveau_client_del(&dec->client);
@@ -158,24 +177,30 @@ destroy_decoder(struct pipe_video_codec *codec)
 }
 
 static int
-allocate_buffer(struct nouveau_nvdec *dec, unsigned index, size_t size)
+allocate_bo(struct nouveau_nvdec *dec, struct nouveau_bo **bo, size_t size)
 {
    int ret = nouveau_bo_new(dec->screen->device,
                             NOUVEAU_BO_GART | NOUVEAU_BO_COHERENT | NOUVEAU_BO_MAP,
-                            4096, align64(size, 4096), NULL, &dec->buffers[index]);
+                            4096, align64(size, 4096), NULL, bo);
    if (ret)
       return ret;
-   ret = nouveau_bo_map(dec->buffers[index], 0, dec->client);
+   ret = nouveau_bo_map(*bo, 0, dec->client);
    if (!ret)
-      memset(dec->buffers[index]->map, 0, dec->buffers[index]->size);
+      memset((*bo)->map, 0, (*bo)->size);
    return ret;
+}
+
+static int
+allocate_buffer(struct nouveau_nvdec *dec, unsigned index, size_t size)
+{
+   return allocate_bo(dec, &dec->buffers[index], size);
 }
 
 static bool
 get_surface(struct nouveau_nvdec *dec, struct pipe_video_buffer *buffer,
             struct pipe_resource *planes[3])
 {
-   if (!buffer || buffer->buffer_format != PIPE_FORMAT_NV12 || buffer->interlaced ||
+   if (!buffer || buffer->buffer_format != dec->format || buffer->interlaced ||
        buffer->width < dec->width || buffer->height < dec->height ||
        buffer->context->screen != dec->base.context->screen)
       return false;
@@ -183,14 +208,16 @@ get_surface(struct nouveau_nvdec *dec, struct pipe_video_buffer *buffer,
    if (!planes[0] || !planes[1])
       return false;
    for (unsigned i = 0; i < 2; i++) {
+      unsigned bpp = dec->format == PIPE_FORMAT_P010 ? 2 : 1;
       struct nv50_miptree *mt = nv50_miptree(planes[i]);
       if (!mt->base.bo || mt->base.base.last_level || mt->base.base.nr_samples > 1 ||
           mt->base.base.width0 < (dec->width >> i) ||
           mt->base.base.height0 < (dec->height >> i) ||
-          mt->base.base.format != (i ? PIPE_FORMAT_R8G8_UNORM : PIPE_FORMAT_R8_UNORM) ||
+          mt->base.base.format != (bpp == 1 ? (i ? PIPE_FORMAT_R8G8_UNORM : PIPE_FORMAT_R8_UNORM) :
+                                              (i ? PIPE_FORMAT_R16G16_UNORM : PIPE_FORMAT_R16_UNORM)) ||
           mt->base.base.array_size != 1 || mt->level[0].tile_mode != 0x10 ||
           (mt->base.address + mt->level[0].offset) & 255 ||
-          mt->level[0].pitch < dec->width ||
+          mt->level[0].pitch < dec->width * bpp ||
           mt->base.bo->config.nvc0.memtype != 0x06)
          return false;
    }
@@ -205,16 +232,16 @@ same_surface(const struct nvdec_surface *surface, struct pipe_resource *const pl
 
 static bool
 prepare_surfaces(struct nouveau_nvdec *dec, struct pipe_video_buffer *target,
-                 const struct pipe_h264_picture_desc *picture,
+                 struct pipe_video_buffer *const *pictures, unsigned picture_count,
                  unsigned *current, uint8_t references[16])
 {
    bool keep[NVDEC_PICTURES] = {false};
    struct pipe_resource *planes[3] = {NULL};
    memset(references, 0xff, 16);
-   for (unsigned i = 0; i < 16; i++) {
-      if (!picture->ref[i])
+   for (unsigned i = 0; i < picture_count; i++) {
+      if (!pictures[i])
          continue;
-      if (!get_surface(dec, picture->ref[i], planes))
+      if (!get_surface(dec, pictures[i], planes))
          return false;
       for (unsigned j = 0; j < NVDEC_PICTURES; j++) {
          if (!same_surface(&dec->surfaces[j], planes))
@@ -263,14 +290,17 @@ buffer_address(struct nouveau_nvdec *dec, unsigned index)
 }
 
 static int
-submit_frame(struct nouveau_nvdec *dec, unsigned current)
+submit_frame(struct nouveau_nvdec *dec, unsigned current,
+             const struct nouveau_nvdec_av1_frame *av1, const uint8_t references[16])
 {
-   struct nouveau_pushbuf_refn refs[NVDEC_BUFFERS + NVDEC_PICTURES * 2];
+   struct nouveau_pushbuf_refn refs[NVDEC_BUFFERS + NVDEC_PICTURES * 5];
    unsigned count = 0;
-   for (unsigned i = 0; i < NVDEC_BUFFERS; i++)
-      refs[count++] = (struct nouveau_pushbuf_refn) {
-         dec->buffers[i], NOUVEAU_BO_GART | NOUVEAU_BO_RDWR,
-      };
+   for (unsigned i = 0; i < NVDEC_BUFFERS; i++) {
+      if (dec->buffers[i])
+         refs[count++] = (struct nouveau_pushbuf_refn) {
+            dec->buffers[i], NOUVEAU_BO_GART | NOUVEAU_BO_RDWR,
+         };
+   }
    for (unsigned i = 0; i < NVDEC_PICTURES; i++) {
       for (unsigned p = 0; p < 2; p++) {
          struct pipe_resource *plane = dec->surfaces[i].planes[p];
@@ -279,6 +309,11 @@ submit_frame(struct nouveau_nvdec *dec, unsigned current)
                nv04_resource(plane)->bo,
                nv04_resource(plane)->domain | (i == current ? NOUVEAU_BO_WR : NOUVEAU_BO_RD),
             };
+      }
+      if (av1 && dec->surfaces[i].planes[0]) {
+         struct nouveau_bo *bos[] = {dec->surfaces[i].cdf, dec->surfaces[i].segment, dec->surfaces[i].tmv};
+         for (unsigned b = 0; b < ARRAY_SIZE(bos); b++)
+            refs[count++] = (struct nouveau_pushbuf_refn) {bos[b], NOUVEAU_BO_GART | NOUVEAU_BO_RDWR};
       }
    }
    int ret = nouveau_pushbuf_space(dec->push, 256, 0, 0);
@@ -290,27 +325,63 @@ submit_frame(struct nouveau_nvdec *dec, unsigned current)
    struct nouveau_pushbuf *push = dec->push;
    const uint32_t seq = ++dec->sequence ? dec->sequence : ++dec->sequence;
    *(uint32_t *)dec->buffers[NVDEC_FENCE]->map = 0;
-   method(push, 0, NVC5B0_VIDEO_DECODER);
-   method(push, NVC5B0_SET_APPLICATION_ID, NVC5B0_SET_APPLICATION_ID_ID_H264);
+   method(push, 0, av1 ? NVC7B0_VIDEO_DECODER : NVC5B0_VIDEO_DECODER);
+   method(push, NVC5B0_SET_APPLICATION_ID, av1 ? NVC7B0_SET_APPLICATION_ID_ID_AVD :
+                                               NVC5B0_SET_APPLICATION_ID_ID_H264);
    method(push, NVC5B0_SET_CONTROL_PARAMS,
-          3 | (1 << 4) | (1 << 6) | (1 << 13));
+          (av1 ? NVDEC_CODEC_AV1 : 3) | (1 << 4) | (1 << 6) | (1 << 13));
    method(push, NVC5B0_SET_DRV_PIC_SETUP_OFFSET, buffer_address(dec, NVDEC_PICTURE));
    method(push, NVC5B0_SET_IN_BUF_BASE_OFFSET, buffer_address(dec, NVDEC_BITSTREAM));
    method(push, NVC5B0_SET_PICTURE_INDEX, seq);
-   method(push, NVC5B0_SET_SLICE_OFFSETS_BUF_OFFSET, buffer_address(dec, NVDEC_OFFSETS));
-   method(push, NVC5B0_SET_COLOC_DATA_OFFSET, buffer_address(dec, NVDEC_COLOC));
-   method(push, NVC5B0_SET_HISTORY_OFFSET, buffer_address(dec, NVDEC_HISTORY));
+   if (!av1) {
+      method(push, NVC5B0_SET_SLICE_OFFSETS_BUF_OFFSET, buffer_address(dec, NVDEC_OFFSETS));
+      method(push, NVC5B0_SET_COLOC_DATA_OFFSET, buffer_address(dec, NVDEC_COLOC));
+      method(push, NVC5B0_SET_HISTORY_OFFSET, buffer_address(dec, NVDEC_HISTORY));
+   }
    method(push, NVC5B0_SET_NVDEC_STATUS_OFFSET, buffer_address(dec, NVDEC_STATUS));
    for (unsigned i = 0; i < NVDEC_PICTURES; i++) {
+      unsigned source = i;
+      if (av1) {
+         if (i > 8 || i == 7)
+            continue;
+         bool intra = av1->pic.frame_type == 0 || av1->pic.frame_type == 2;
+         source = i == 8 || intra ? current : references[av1->reference_map[i]];
+      }
       for (unsigned p = 0; p < 2; p++) {
-         struct pipe_resource *plane = dec->surfaces[i].planes[p];
+         struct pipe_resource *plane = dec->surfaces[source].planes[p];
          uint32_t address = plane ? (nv04_resource(plane)->address +
                                     nv50_miptree(plane)->level[0].offset) >> 8 : 0;
          method(push, (p ? NVC5B0_SET_PICTURE_CHROMA_OFFSET0 :
                            NVC5B0_SET_PICTURE_LUMA_OFFSET0) + i * 4, address);
       }
    }
-   method(push, NVC5B0_H264_SET_MBHIST_BUF_OFFSET, buffer_address(dec, NVDEC_MBHIST));
+   if (av1) {
+      struct nvdec_surface *dst = &dec->surfaces[current];
+      struct nouveau_bo *cdf = av1->primary < 0 ? dec->buffers[NVDEC_AV1_CDF_DEFAULT] :
+                                                dec->surfaces[references[av1->primary]].cdf;
+      struct nouveau_bo *segment = av1->primary >= 0 && av1->pic.prevsegid_flag &&
+                                    dec->surfaces[references[av1->primary]].av1.segmented ?
+                                    dec->surfaces[references[av1->primary]].segment :
+                                    dec->buffers[NVDEC_AV1_ZERO_SEGMENT];
+      method(push, NVC7B0_SET_TILE_SIZE_BUF_OFFSET, buffer_address(dec, NVDEC_AV1_TILES));
+      method(push, NVC7B0_SET_FILTER_BUFFER_OFFSET, buffer_address(dec, NVDEC_AV1_FILTER));
+      method(push, NVC7B0_SET_INTRA_TOP_BUF_OFFSET, buffer_address(dec, NVDEC_AV1_INTRA));
+      method(push, NVC7B0_AV1_SET_PROB_TAB_READ_BUF_OFFSET, cdf->offset >> 8);
+      method(push, NVC7B0_AV1_SET_PROB_TAB_WRITE_BUF_OFFSET, buffer_address(dec, NVDEC_AV1_CDF_OUT));
+      method(push, NVC7B0_AV1_SET_SEGMENT_READ_BUF_OFFSET, segment->offset >> 8);
+      method(push, NVC7B0_AV1_SET_SEGMENT_WRITE_BUF_OFFSET, dst->segment->offset >> 8);
+      method(push, NVC7B0_AV1_SET_COL_MVWRITE_BUF_OFFSET, dst->tmv->offset >> 8);
+      for (unsigned i = 0; i < 3; i++) {
+         struct nvdec_surface *src = av1->projections[i] < 0 ? dst :
+                                       &dec->surfaces[references[av1->projections[i]]];
+         method(push, NVC7B0_AV1_SET_COL_MV0_READ_BUF_OFFSET + i * 4, src->tmv->offset >> 8);
+      }
+      method(push, NVC7B0_AV1_SET_GLOBAL_MODEL_BUF_OFFSET, buffer_address(dec, NVDEC_AV1_GM));
+      method(push, NVC7B0_AV1_SET_FILM_GRAIN_BUF_OFFSET, buffer_address(dec, NVDEC_AV1_GRAIN));
+      method(push, NVC7B0_AV1_SET_TILE_STREAM_INFO_BUF_OFFSET, buffer_address(dec, NVDEC_AV1_TILE_STREAM));
+   } else {
+      method(push, NVC5B0_H264_SET_MBHIST_BUF_OFFSET, buffer_address(dec, NVDEC_MBHIST));
+   }
    method(push, NVC5B0_EXECUTE, 0);
    method(push, NVC5B0_SEMAPHORE_A, dec->buffers[NVDEC_FENCE]->offset >> 32);
    method(push, NVC5B0_SEMAPHORE_B, dec->buffers[NVDEC_FENCE]->offset);
@@ -362,17 +433,107 @@ decode_bitstream(struct pipe_video_codec *codec, struct pipe_video_buffer *targe
 }
 
 static int
+finish_pipe(struct pipe_video_codec *codec)
+{
+   struct pipe_fence_handle *fence = NULL;
+   codec->context->flush(codec->context, &fence, 0);
+   bool ready = fence && codec->context->screen->fence_finish(codec->context->screen,
+                                                            codec->context, fence, NVDEC_TIMEOUT_NS);
+   codec->context->screen->fence_reference(codec->context->screen, &fence, NULL);
+   return ready ? 0 : -ETIMEDOUT;
+}
+
+static int
+end_frame_av1(struct nouveau_nvdec *dec, struct pipe_video_buffer *target,
+              const struct pipe_av1_picture_desc *picture)
+{
+   if (!picture || !target ||
+       (target->buffer_format != PIPE_FORMAT_NV12 && target->buffer_format != PIPE_FORMAT_P010) ||
+       picture->picture_parameter.bit_depth_idx != (target->buffer_format == PIPE_FORMAT_P010))
+      return dec->error = -EINVAL;
+   dec->format = target->buffer_format;
+   unsigned current;
+   uint8_t references[16];
+   if (!prepare_surfaces(dec, target, picture->ref, 8, &current, references))
+      return dec->error = -EINVAL;
+   struct nvdec_surface *surface = &dec->surfaces[current];
+   struct nouveau_nvdec_av1_frame frame;
+   const struct nouveau_nvdec_av1_ref *refmeta[8] = {NULL};
+   for (unsigned i = 0; i < 8; i++)
+      if (references[i] != 0xff)
+         refmeta[i] = &dec->surfaces[references[i]].av1;
+   struct nv50_miptree *y = nv50_miptree(surface->planes[0]);
+   struct nv50_miptree *uv = nv50_miptree(surface->planes[1]);
+   if (!nouveau_nvdec_av1_picture(picture, dec->stream.size,
+                                  y->level[0].pitch, uv->level[0].pitch,
+                                  dec->width, dec->height, refmeta, &frame))
+      return dec->error = -EINVAL;
+   int ret = finish_pipe(&dec->base);
+   if (!ret && !surface->cdf)
+      ret = allocate_bo(dec, &surface->cdf, NVDEC_AV1_CDF_SIZE);
+   if (!ret && !surface->segment)
+      ret = allocate_bo(dec, &surface->segment, AV1_SEGMENT_ID_BUF_SIZE(dec->width, dec->height));
+   if (!ret && !surface->tmv)
+      ret = allocate_bo(dec, &surface->tmv, AV1_TEMPORAL_MV_BUF_SIZE(dec->width, dec->height));
+   if (ret)
+      return dec->error = ret;
+   if (!dec->buffers[NVDEC_BITSTREAM] || dec->buffers[NVDEC_BITSTREAM]->size < dec->stream.size + 64) {
+      nouveau_bo_ref(NULL, &dec->buffers[NVDEC_BITSTREAM]);
+      ret = allocate_buffer(dec, NVDEC_BITSTREAM, dec->stream.size + 64);
+      if (ret)
+         return dec->error = ret;
+   }
+   if (frame.primary < 0) {
+      unsigned q = picture->picture_parameter.base_qindex;
+      nouveau_nvdec_av1_default_cdf(q <= 20 ? 0 : q <= 60 ? 1 : q <= 120 ? 2 : 3,
+                                     dec->buffers[NVDEC_AV1_CDF_DEFAULT]->map);
+   }
+   memcpy(dec->buffers[NVDEC_PICTURE]->map, &frame.pic, sizeof(frame.pic));
+   memcpy(dec->buffers[NVDEC_AV1_TILES]->map, frame.tiles, sizeof(frame.tiles));
+   memcpy(dec->buffers[NVDEC_AV1_GM]->map, frame.global_motion, sizeof(frame.global_motion));
+   memcpy(dec->buffers[NVDEC_BITSTREAM]->map, dec->stream.data, dec->stream.size);
+   memset((uint8_t *)dec->buffers[NVDEC_BITSTREAM]->map + dec->stream.size, 0, 64);
+   memset(dec->buffers[NVDEC_STATUS]->map, 0, dec->buffers[NVDEC_STATUS]->size);
+   memset(dec->buffers[NVDEC_AV1_CDF_OUT]->map, 0, NVDEC_AV1_CDF_SIZE);
+   ret = submit_frame(dec, current, &frame, references);
+   if (ret) {
+      mesa_loge("native AV1 submission failed: %s", strerror(-ret));
+      return dec->error = ret;
+   }
+   struct nouveau_bo *cdf_in = frame.primary < 0 ? dec->buffers[NVDEC_AV1_CDF_DEFAULT] :
+                                                   dec->surfaces[references[frame.primary]].cdf;
+   memcpy(surface->cdf->map, picture->picture_parameter.pic_info_fields.disable_frame_end_update_cdf ?
+                                cdf_in->map : dec->buffers[NVDEC_AV1_CDF_OUT]->map, NVDEC_AV1_CDF_SIZE);
+   surface->av1 = (struct nouveau_nvdec_av1_ref) {
+      .width = picture->picture_parameter.frame_width,
+      .height = picture->picture_parameter.frame_height,
+      .coded_width = frame.pic.current_frame.width,
+      .pitch = {y->level[0].pitch, uv->level[0].pitch},
+      .order_hint = picture->picture_parameter.order_hint,
+      .intra = frame.pic.frame_type == 0 || frame.pic.frame_type == 2,
+      .segmented = frame.pic.segment_enabled,
+   };
+   for (unsigned i = 0; i < 7; i++) {
+      const struct nouveau_nvdec_av1_ref *r = refmeta[frame.reference_map[i]];
+      surface->av1.saved_order_hints[i] = r ? r->order_hint : 0;
+   }
+   return 0;
+}
+
+static int
 end_frame(struct pipe_video_codec *codec, struct pipe_video_buffer *target,
           struct pipe_picture_desc *picture)
 {
    struct nouveau_nvdec *dec = (struct nouveau_nvdec *)codec;
    if (dec->error)
       return dec->error;
+   if (codec->profile == PIPE_VIDEO_PROFILE_AV1_MAIN)
+      return end_frame_av1(dec, target, (const struct pipe_av1_picture_desc *)picture);
    const struct pipe_h264_picture_desc *h264 = (const struct pipe_h264_picture_desc *)picture;
    unsigned current;
    uint8_t references[16];
    nvdec_h264_pic_s params;
-   if (!h264 || !prepare_surfaces(dec, target, h264, &current, references))
+   if (!h264 || !prepare_surfaces(dec, target, h264->ref, 16, &current, references))
       return dec->error = -EINVAL;
    struct nv50_miptree *y = nv50_miptree(dec->surfaces[current].planes[0]);
    struct nv50_miptree *uv = nv50_miptree(dec->surfaces[current].planes[1]);
@@ -385,12 +546,7 @@ end_frame(struct pipe_video_codec *codec, struct pipe_video_buffer *target,
     * channel. Waiting here preserves ordering even for in-process resources
     * whose Gallium fence has not yet reached the kernel reservation object.
     */
-   struct pipe_fence_handle *fence = NULL;
-   codec->context->flush(codec->context, &fence, 0);
-   bool ready = fence && codec->context->screen->fence_finish(codec->context->screen,
-                                                            codec->context, fence, NVDEC_TIMEOUT_NS);
-   codec->context->screen->fence_reference(codec->context->screen, &fence, NULL);
-   if (!ready)
+   if (finish_pipe(codec))
       return dec->error = -ETIMEDOUT;
    if (!dec->buffers[NVDEC_BITSTREAM] ||
        dec->buffers[NVDEC_BITSTREAM]->size < dec->stream.size + 16) {
@@ -405,7 +561,7 @@ end_frame(struct pipe_video_codec *codec, struct pipe_video_buffer *target,
    memcpy(dec->buffers[NVDEC_BITSTREAM]->map, dec->stream.data, dec->stream.size);
    memcpy((uint8_t *)dec->buffers[NVDEC_BITSTREAM]->map + dec->stream.size, params.eos, 16);
    memset(dec->buffers[NVDEC_STATUS]->map, 0, dec->buffers[NVDEC_STATUS]->size);
-   int ret = submit_frame(dec, current);
+   int ret = submit_frame(dec, current, NULL, NULL);
    if (ret) {
       mesa_loge("native H.264 submission failed: %s", strerror(-ret));
       dec->error = ret;
@@ -441,12 +597,13 @@ nouveau_nvdec_create(struct pipe_context *context, const struct pipe_video_codec
    dec->screen = screen;
    dec->width = align(templ->width, 16);
    dec->height = align(templ->height, 16);
+   dec->format = PIPE_FORMAT_NV12;
    int ret = nouveau_client_new(screen->device, &dec->client);
    if (!ret)
       ret = open_channel(screen, &dec->channel, &dec->engine);
    if (!ret)
       ret = nouveau_pushbuf_new(dec->client, dec->channel, 2, 16384, &dec->push);
-   const size_t sizes[] = {
+   size_t sizes[NVDEC_BUFFERS] = {
       [NVDEC_PICTURE] = sizeof(nvdec_h264_pic_s),
       [NVDEC_OFFSETS] = (NOUVEAU_NVDEC_MAX_SLICES + 1) * sizeof(uint32_t),
       [NVDEC_STATUS] = 4096,
@@ -455,10 +612,23 @@ nouveau_nvdec_create(struct pipe_context *context, const struct pipe_video_codec
       [NVDEC_MBHIST] = align((dec->width / 16) * 104, 256),
       [NVDEC_HISTORY] = align((dec->width / 16) * 0x300, 512),
    };
+   if (templ->profile == PIPE_VIDEO_PROFILE_AV1_MAIN) {
+      sizes[NVDEC_PICTURE] = sizeof(nvdec_av1_pic_s);
+      sizes[NVDEC_OFFSETS] = sizes[NVDEC_COLOC] = sizes[NVDEC_MBHIST] = sizes[NVDEC_HISTORY] = 0;
+      sizes[NVDEC_AV1_CDF_DEFAULT] = sizes[NVDEC_AV1_CDF_OUT] = NVDEC_AV1_CDF_SIZE;
+      sizes[NVDEC_AV1_TILES] = AV1_TILEINFO_BUF_SIZE_OLD;
+      sizes[NVDEC_AV1_FILTER] = nouveau_nvdec_av1_filter_size(dec->width, dec->height);
+      sizes[NVDEC_AV1_INTRA] = AV1_INTRA_TOP_BUF_SIZE * 2;
+      sizes[NVDEC_AV1_GM] = AV1_GLOBAL_MOTION_BUF_SIZE;
+      sizes[NVDEC_AV1_GRAIN] = AV1_FGS_BUF_SIZE;
+      sizes[NVDEC_AV1_TILE_STREAM] = AV1_TILESTREAMINFO_BUF_SIZE;
+      sizes[NVDEC_AV1_ZERO_SEGMENT] = AV1_SEGMENT_ID_BUF_SIZE(dec->width, dec->height);
+   }
    for (unsigned i = 0; !ret && i < ARRAY_SIZE(sizes); i++)
-      ret = allocate_buffer(dec, i, sizes[i]);
+      if (sizes[i])
+         ret = allocate_buffer(dec, i, sizes[i]);
    if (ret) {
-      mesa_loge("native H.264 initialization failed: %s", strerror(-ret));
+      mesa_loge("native video initialization failed: %s", strerror(-ret));
       destroy_decoder(&dec->base);
       return NULL;
    }

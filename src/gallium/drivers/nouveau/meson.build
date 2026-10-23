@@ -165,7 +165,9 @@ files_libnouveau = files(
 nouveau_video_args = []
 files_libnouveau += files('nouveau_nvenc.c', 'nouveau_nvenc.h')
 files_libnouveau += files('nouveau_nvdec.c', 'nouveau_nvdec.h',
-                          'nouveau_nvdec_h264.c', 'nouveau_nvdec_h264.h')
+                          'nouveau_nvdec_h264.c', 'nouveau_nvdec_h264.h',
+                          'nouveau_nvdec_av1.c', 'nouveau_nvdec_av1.h',
+                          'nouveau_nvdec_av1_probs.c')
 if get_option('nouveau-nvenc')
   files_libnouveau += files(
     'nouveau_nvenc_backend.c', 'nouveau_nvenc_backend.h',

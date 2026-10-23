@@ -44,7 +44,8 @@ def main():
                                            'MESA_LOG_LEVEL')},
         'cases': [],
         'limitations': ['Correctness, not a codec performance benchmark.',
-                        'Only progressive 8-bit 4:2:0 H.264 decode is covered.',
+                        'H.264 covers progressive 8-bit 4:2:0 decode; AV1 covers Profile0 '
+                        '8/10-bit 4:2:0 without film grain.',
                         'Encode checks validate stream structure, not visual quality or speed.',
                         'This does not certify other codecs or all GPUs.'],
     }
@@ -54,7 +55,9 @@ def main():
                root / 'src/nouveau/meson.build', root / 'src/nouveau/headers/meson.build',
                root / 'src/gallium/winsys/nouveau/drm/nouveau.c',
                *[native / name for name in ('meson.build', 'nouveau_nvdec.c', 'nouveau_nvdec.h',
-                  'nouveau_nvdec_h264.c', 'nouveau_nvdec_h264.h', 'nouveau_nvenc.c',
+                  'nouveau_nvdec_h264.c', 'nouveau_nvdec_h264.h',
+                  'nouveau_nvdec_av1.c', 'nouveau_nvdec_av1.h', 'nouveau_nvdec_av1_probs.c',
+                  'nouveau_nvenc.c',
                   'nouveau_nvenc_backend.c', 'nouveau_nvenc_backend.h', 'nouveau_screen.h',
                   'nouveau_vp3_video.c', 'nvc0/nvc0_video.c')]]
     report['source_sha256'] = {str(p.relative_to(root)): digest(p) for p in sources}
@@ -139,6 +142,68 @@ def main():
         (args.output / 'report.json').write_text(json.dumps(report, indent=2) + '\n')
         if not case['passed']:
             break
+    av1_cases = [
+        # (name, width, height, frames, gop, lag, tiles, bit-depth)
+        ('av1-intra', 256, 256, 4, 1, 0, (0, 0), 8),
+        ('av1-inter', 320, 180, 48, 24, 0, (0, 0), 8),
+        ('av1-altref', 320, 180, 48, 24, 16, (0, 0), 8),
+        ('av1-tiles', 640, 360, 24, 12, 0, (1, 1), 8),
+        ('av1-main10', 320, 180, 48, 24, 16, (0, 0), 10),
+    ]
+    if ok and len(report['cases']) == len(cases):
+        for name, width, height, frames, gop, lag, tiles, depth in av1_cases:
+            clip = args.output / (name + '.ivf')
+            cpu = args.output / (name + '-cpu.yuv')
+            gpu = args.output / (name + '-vaapi.yuv')
+            case = {'name': name, 'codec': 'AV1', 'width': width, 'height': height,
+                    'frames': frames, 'gop': gop, 'lag': lag, 'tiles': list(tiles),
+                    'bit_depth': depth}
+            report.setdefault('av1', []).append(case)
+            pix = f'yuv420p{"" if depth == 8 else "10le"}'
+            case['generate'] = run(name + '-generate', [
+                'ffmpeg', '-nostdin', '-v', 'error', '-f', 'lavfi', '-i',
+                f'testsrc2=size={width}x{height}:rate=24', '-frames:v', str(frames),
+                '-c:v', 'libaom-av1', '-threads', '4', '-row-mt', '1', '-cpu-used', '6',
+                '-lag-in-frames', str(lag), '-auto-alt-ref', '1' if lag else '0',
+                '-g', str(gop), '-crf', '30', '-tile-columns', str(tiles[0]),
+                '-tile-rows', str(tiles[1]), '-pix_fmt', pix, '-f', 'ivf', str(clip)],
+                timeout=180)
+            if case['generate']['returncode']:
+                case['passed'] = False
+                ok = False
+                break
+            case['input_sha256'] = digest(clip)
+            common = ['ffmpeg', '-nostdin', '-v', 'verbose', '-xerror']
+            download = 'p010le' if depth == 10 else 'nv12'
+            case['cpu'] = run(name + '-cpu', common + ['-hwaccel', 'none', '-c:v', 'libdav1d',
+                                                        '-threads', '1', '-i', str(clip),
+                                                        '-pix_fmt', pix, '-c:v', 'rawvideo',
+                                                        '-threads', '1', '-fps_mode', 'passthrough',
+                                                        '-f', 'rawvideo', str(cpu)])
+            case['vaapi'] = run(name + '-vaapi', common + [
+                '-init_hw_device', 'vaapi=lab:' + args.render_node,
+                '-hwaccel', 'vaapi', '-hwaccel_device', 'lab',
+                '-hwaccel_output_format', 'vaapi', '-c:v', 'av1', '-threads', '1',
+                '-i', str(clip), '-vf', f'hwdownload,format={download},format={pix}',
+                '-c:v', 'rawvideo', '-pix_fmt', pix, '-threads', '1',
+                '-fps_mode', 'passthrough', '-f', 'rawvideo', str(gpu)])
+            sample = 2 if depth == 10 else 1
+            expected = width * height * 3 // 2 * sample * frames
+            case['expected_bytes'] = expected
+            case['passed'] = (not case['cpu']['returncode'] and not case['vaapi']['returncode']
+                              and cpu.exists() and gpu.exists()
+                              and cpu.stat().st_size == expected and gpu.stat().st_size == expected
+                              and digest(cpu) == digest(gpu))
+            for tag, path in [('cpu', cpu), ('vaapi', gpu)]:
+                if path.exists():
+                    case[tag + '_sha256'] = digest(path)
+                    if not args.keep_frames:
+                        path.unlink()
+            print(name + ': ' + ('PASS' if case['passed'] else 'FAIL'), flush=True)
+            ok &= case['passed']
+            (args.output / 'report.json').write_text(json.dumps(report, indent=2) + '\n')
+            if not case['passed']:
+                break
     trace = args.output / 'native.trace'
     if trace.exists():
         text = trace.read_text()
@@ -189,7 +254,8 @@ def main():
             ok &= item['passed']
             if not item['passed']:
                 break
-    report['passed'] = bool(ok and len(report['cases']) == len(cases) and len(report['encode']) == 3)
+    report['passed'] = bool(ok and len(report['cases']) == len(cases) and len(report['encode']) == 3
+                            and len(report.get('av1', [])) == len(av1_cases))
     (args.output / 'report.json').write_text(json.dumps(report, indent=2) + '\n')
     return 0 if report['passed'] else 1
 

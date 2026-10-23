@@ -18,7 +18,9 @@ NAK remains enabled for OpenGL independently of building the Vulkan driver.
 NVK's existing Vulkan Video frontend is retained; Vulkan applications continue
 to use it directly.
 
-## Implemented and validated first stage
+## Implemented and validated stages
+
+### Stage 1: H.264
 
 - **Hardware:** GA107 (the tested RTX 3050 6 GB), nvgd DRM and GSP 615.78.08.
 - **Decode:** progressive H.264 Baseline/Main/High, 8-bit 4:2:0, NV12 surfaces.
@@ -36,8 +38,22 @@ to use it directly.
 - Channel object destruction uses the DRM file descriptor, not the channel
   handle. Recreating native decode contexts no longer fails with `EEXIST`.
 
+### Stage 2: AV1 decode (Profile0)
+
+- **Decode:** AV1 Profile0 8-bit and 10-bit 4:2:0 (NV12 and P010 surfaces),
+  128x128 through 4096x4096. Validated bit-exact against libdav1d on:
+  all-intra, inter with GOP 24, hidden/altref frames with 16-frame lag and
+  `show_existing_frame` handling, 2x2 tile grids, and Main10 10-bit streams.
+- Per-surface CDF (adaptation state), segment-ID and temporal-MV buffers;
+  default CDF tables are packed into the NVDEC layout at runtime. Global
+  motion shear parameters (spec 7.11.3.6), superres steps (7.16), motion
+  field projection order and segmentation signs follow the AV1 spec.
+- **Not yet covered, rejected explicitly:** film grain (`apply_grain`),
+  4:2:2/4:4:4, 12-bit, monochrome, large-scale tiles and profile 1. These
+  fail the picture check loudly; there is no silent CPU or Vulkan fallback.
+
 There is no claim of AMD feature parity or a codec performance improvement.
-The first decoder completes each frame synchronously, with a bounded wait
+Both decoders complete each frame synchronously, with a bounded wait
 and the firmware watchdog enabled. Unsupported bit depths, interlaced
 pictures, protected playback, layouts and codecs are rejected; they are not
 silently sent through Vulkan or decoded on the CPU by this backend.
@@ -61,25 +77,32 @@ python3 docs/benchmarks/check-native-video.py /path/to/new-results \
   --driver-dir /tmp/opencode/nvgd-native-video-only/src/gallium/targets/dri
 ```
 
-The hardware check needs FFmpeg/libx264, ffprobe, vainfo and strace. It does
-not install drivers. It forces hardware output followed by `hwdownload`,
-compares all 200 decoded frames byte-for-byte to CPU references, and checks
-72 encoded frames for valid H.264, expected dimensions/count and direct
-Gallium-plane submission. Encode checks are not visual-quality benchmarks.
+The hardware check needs FFmpeg/libx264/libaom/libdav1d, ffprobe, vainfo and
+strace. It does not install drivers. It forces hardware output followed by
+`hwdownload`, compares every decoded frame byte-for-byte to CPU references
+(200 H.264 frames plus 168 AV1 frames), and checks 72 encoded frames for
+valid H.264, expected dimensions/count and direct Gallium-plane submission.
+Encode checks are not visual-quality benchmarks.
 Both Vulkan ICD variables deliberately point to a nonexistent file. The trace
 must show DRM pushbuffer submissions without opening `libvulkan_nouveau.so`.
 The report records binary, input, decoded-frame and relevant source hashes.
 
-Recorded on 2026-10-23: [report and hashes](benchmarks/native-video-2026-10-23/report.json),
+Recorded on 2026-10-23, H.264 stage: [report and hashes](benchmarks/native-video-2026-10-23/report.json),
 [native DRM trace](benchmarks/native-video-2026-10-23/native.trace),
 [capabilities](benchmarks/native-video-2026-10-23/vainfo.log),
 [1080p encode log](benchmarks/native-video-2026-10-23/encode-high-1920x1080.log).
-All eight decode and three encode cases passed using the Vulkan-free build.
+Recorded on 2026-10-23, AV1 stage: [report and hashes](benchmarks/native-video-av1-2026-10-23/report.json),
+[10-bit decode log](benchmarks/native-video-av1-2026-10-23/av1-main10-vaapi.log),
+[altref decode log](benchmarks/native-video-av1-2026-10-23/av1-altref-vaapi.log).
+All eight H.264 decode, five AV1 decode and three encode cases passed using
+the Vulkan-free build.
 
 The C parameter tests exercise raster scaling matrices, stable colocated-MV
 indices, DPB markings, slice offsets, input bounds and unsupported-picture
 rejection. They were additionally run with AddressSanitizer/UBSan and
-`-Werror`. The existing NV12 upload/bitstream-growth checks cover 144
+`-Werror`. The AV1 default-CDF packer is compared byte-for-byte against an
+independent MIT-licensed NVDEC layout reference at build-test time.
+The existing NV12 upload/bitstream-growth checks cover 144
 edge/pitch combinations and also pass with both sanitizers.
 
 ## Next codecs, in priority order
@@ -89,8 +112,8 @@ edge/pitch combinations and also pass with both sanitizers.
    lists, scaling/tile/filter buffers and frame validation.
 2. **VP9 Profile 0/2 decode:** browser/web-video workloads. Needs probability
    context, segmentation and reference-state handling, including 10-bit tests.
-3. **AV1 Main decode:** web video and newer streaming content. Needs tile,
-   CDF, reference, restoration and film-grain handling.
+3. **AV1 film grain and remaining tools:** the FGS buffer and a separate
+   display surface, covering `apply_grain` streams end to end.
 
 These are implementation stages, **not advertised capabilities**. Each must
 pass native hardware output checks before enabling its VA-API profiles.

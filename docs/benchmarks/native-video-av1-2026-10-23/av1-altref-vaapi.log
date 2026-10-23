@@ -1,0 +1,68 @@
+ffmpeg version n9.0.2 Copyright (c) 2000-2026 the FFmpeg developers
+  built with gcc 16 (GCC)
+  configuration: --prefix=/usr --disable-debug --disable-static --disable-stripping --enable-amf --enable-avisynth --enable-cuda-llvm --enable-lto --enable-fontconfig --enable-frei0r --enable-gmp --enable-gnutls --enable-gpl --enable-ladspa --enable-lcms2 --enable-libaom --enable-libass --enable-libbluray --enable-libbs2b --enable-libdav1d --enable-libdrm --enable-libdvdnav --enable-libdvdread --enable-libfreetype --enable-libfribidi --enable-libgsm --enable-libharfbuzz --enable-libiec61883 --enable-libjack --enable-libjxl --enable-libmodplug --enable-libmp3lame --enable-libopencore_amrnb --enable-libopencore_amrwb --enable-libopenjpeg --enable-libopenmpt --enable-libopus --enable-libplacebo --enable-libpulse --enable-librav1e --enable-librsvg --enable-librubberband --enable-libsnappy --enable-libsoxr --enable-libspeex --enable-libsrt --enable-libssh --enable-libsvtav1 --enable-libtheora --enable-libv4l2 --enable-libvidstab --enable-libvmaf --enable-libvorbis --enable-libvpl --enable-libvpx --enable-libwebp --enable-libx264 --enable-libx265 --enable-libxcb --enable-libxml2 --enable-libxvid --enable-libzimg --enable-libzmq --enable-nvdec --enable-nvenc --enable-opencl --enable-opengl --enable-shared --enable-vapoursynth --enable-version3 --enable-vulkan --disable-decoder=magicyuv
+  libavutil      61.  1.102 / 61.  1.102
+  libavcodec     63.  1.102 / 63.  1.102
+  libavformat    63.  1.102 / 63.  1.102
+  libavdevice    63.  1.102 / 63.  1.102
+  libavfilter    12.  1.102 / 12.  1.102
+  libswscale     10.  1.102 / 10.  1.102
+  libswresample   7.  1.102 /  7.  1.102
+[VAAPI @ 0x5b6ea0379cc0] libva: VA-API version 1.24.0
+[VAAPI @ 0x5b6ea0379cc0] libva: User environment variable requested driver 'nvgd'
+[VAAPI @ 0x5b6ea0379cc0] libva: Trying to open /tmp/opencode/nvgd-native-video-only/src/gallium/targets/dri/nvgd_drv_video.so
+[VAAPI @ 0x5b6ea0379cc0] libva: Found init function __vaDriverInit_1_24
+[VAAPI @ 0x5b6ea0379cc0] libva: va_openDriver() returns 0
+[VAAPI @ 0x5b6ea0379cc0] Initialised VAAPI connection: version 1.24
+[VAAPI @ 0x5b6ea0379cc0] VAAPI driver: Mesa Gallium driver 27.0.0-devel for NVIDIA GeForce RTX 3050 (GA107) (nvgd, ga107, DRM 65540.3).
+[VAAPI @ 0x5b6ea0379cc0] Driver not found in known nonstandard list, using standard behaviour.
+Input #0, ivf, from '/home/gean/Documents/nouveau-lab/artifacts/native-video-av1-20261023/av1-altref.ivf':
+  Duration: 00:00:02.00, start: 0.000000, bitrate: 167 kb/s
+  Stream #0:0: Video: av1 (Main), 1 reference frame (AV01 / 0x31305641), yuv420p(tv), 320x180 [SAR 1:1 DAR 16:9], 24 tbr, 24 tbn
+[out#0/rawvideo @ 0x5b6ea03c3e80] No explicit maps, mapping streams automatically...
+[vost#0:0/rawvideo @ 0x5b6ea03c4200] Created video stream from input stream 0:0
+Stream mapping:
+  Stream #0:0 -> #0:0 (av1 (native) -> rawvideo (native))
+[vost#0:0/rawvideo @ 0x5b6ea03c4200] Starting thread...
+[vf#0:0 @ 0x5b6ea03c7680] Starting thread...
+[vist#0:0/av1 @ 0x5b6ea03c0400] [dec:av1 @ 0x5b6ea03d1540] Starting thread...
+[in#0/ivf @ 0x5b6ea03bf780] Starting thread...
+[graph -1 input from stream 0:0 @ 0x78467c0021c0] w:320 h:180 pixfmt:vaapi tb:1/24 fr:24/1 sar:1/1 csp:unknown range:tv alpha:unspecified
+[auto_scale_0 @ 0x78467c0041c0] w:iw h:ih flags:'' interl:0
+[Parsed_format_2 @ 0x78467c001880] auto-inserting filter 'auto_scale_0' between the filter 'Parsed_format_1' and the filter 'Parsed_format_2'
+[auto_scale_0 @ 0x78467c0041c0] w:320 h:180 fmt:nv12 csp:unknown range:tv sar:1/1 -> w:320 h:180 fmt:yuv420p csp:unknown range:tv sar:1/1 flags:0x00000004
+[auto_scale_0 @ 0x78467c0041c0] [framesync @ 0x78467c0042d0] Selected 1/24 time base
+[auto_scale_0 @ 0x78467c0041c0] [framesync @ 0x78467c0042d0] Sync level 1
+[graph -1 input from stream 0:0 @ 0x78467c0021c0] video frame properties congruent with link at pts_time: 0
+Output #0, rawvideo, to '/home/gean/Documents/nouveau-lab/artifacts/native-video-av1-20261023/av1-altref-vaapi.yuv':
+  Metadata:
+    encoder         : Lavf63.1.102
+  Stream #0:0: Video: rawvideo, 1 reference frame (I420 / 0x30323449), yuv420p(tv, progressive), 320x180 [SAR 1:1 DAR 16:9], q=2-31, 16588 kb/s, 24 fps, 24 tbn
+    Metadata:
+      encoder         : Lavc63.1.102 rawvideo
+[out#0/rawvideo @ 0x5b6ea03c3e80] Starting thread...
+[in#0/ivf @ 0x5b6ea03bf780] EOF while reading input
+[in#0/ivf @ 0x5b6ea03bf780] Terminating thread with return code 0 (success)
+[vist#0:0/av1 @ 0x5b6ea03c0400] [dec:av1 @ 0x5b6ea03d1540] Decoder thread received EOF packet
+[vist#0:0/av1 @ 0x5b6ea03c0400] [dec:av1 @ 0x5b6ea03d1540] Decoder returned EOF, finishing
+[vist#0:0/av1 @ 0x5b6ea03c0400] [dec:av1 @ 0x5b6ea03d1540] Terminating thread with return code 0 (success)
+[auto_scale_0 @ 0x78467c0041c0] [framesync @ 0x78467c0042d0] Sync level 0
+[vf#0:0 @ 0x5b6ea03c7680] Filtergraph returned EOF, finishing
+[vf#0:0 @ 0x5b6ea03c7680] All consumers returned EOF
+[vost#0:0/rawvideo @ 0x5b6ea03c4200] [enc:rawvideo @ 0x5b6ea03c4640] Encoder thread received EOF
+[vf#0:0 @ 0x5b6ea03c7680] Terminating thread with return code 0 (success)
+[vost#0:0/rawvideo @ 0x5b6ea03c4200] Terminating thread with return code 0 (success)
+[out#0/rawvideo @ 0x5b6ea03c3e80] All streams finished
+[out#0/rawvideo @ 0x5b6ea03c3e80] Terminating thread with return code 0 (success)
+[AVIOContext @ 0x5b6ea03d5700] Statistics: 4147200 bytes written, 0 seeks, 16 writeouts
+[out#0/rawvideo @ 0x5b6ea03c3e80] Output file #0 (/home/gean/Documents/nouveau-lab/artifacts/native-video-av1-20261023/av1-altref-vaapi.yuv):
+[out#0/rawvideo @ 0x5b6ea03c3e80]   Output stream #0:0 (video): 48 frames encoded; 48 packets muxed (4147200 bytes); 
+[out#0/rawvideo @ 0x5b6ea03c3e80]   Total: 48 packets (4147200 bytes) muxed
+[out#0/rawvideo @ 0x5b6ea03c3e80] video:4050KiB audio:0KiB subtitle:0KiB other streams:0KiB global headers:0KiB muxing overhead: 0.000000%
+frame=   48 fps=0.0 q=-0.0 Lsize=    4050KiB time=00:00:02.00 bitrate=16588.8kbits/s speed=  16x elapsed=0:00:00.12    
+[in#0/ivf @ 0x5b6ea03bf780] Input file #0 (/home/gean/Documents/nouveau-lab/artifacts/native-video-av1-20261023/av1-altref.ivf):
+[in#0/ivf @ 0x5b6ea03bf780]   Input stream #0:0 (video): 48 packets read (41307 bytes); 48 frames decoded; 0 decode errors; 
+[in#0/ivf @ 0x5b6ea03bf780]   Total: 48 packets (41307 bytes) demuxed
+[AVIOContext @ 0x5b6ea03c0600] Statistics: 41915 bytes read, 0 seeks
+
+Exiting with exit code 0
