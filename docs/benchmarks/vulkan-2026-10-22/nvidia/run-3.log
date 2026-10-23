@@ -1,0 +1,25 @@
+=======================================================
+    vkmark 2025.01
+=======================================================
+    Vendor ID:      0x10DE
+    Device ID:      0x2584
+    Device Name:    NVIDIA GeForce RTX 3050
+    Driver Version: 2580775424
+    Device UUID:    da4992922b5dbae66f9c57eeaf41849b
+=======================================================
+[vertex] device-local=true: FPS: 13698 FrameTime: 0.073 ms
+[vertex] device-local=false: FPS: 5311 FrameTime: 0.188 ms
+[texture] anisotropy=0: FPS: 14029 FrameTime: 0.071 ms
+[texture] anisotropy=16: FPS: 14408 FrameTime: 0.069 ms
+[shading] shading=gouraud: FPS: 14247 FrameTime: 0.070 ms
+[shading] shading=blinn-phong-inf: FPS: 14642 FrameTime: 0.068 ms
+[shading] shading=phong: FPS: 14252 FrameTime: 0.070 ms
+[shading] shading=cel: FPS: 14412 FrameTime: 0.069 ms
+[effect2d] kernel=edge: FPS: 14886 FrameTime: 0.067 ms
+[effect2d] kernel=blur: FPS: 10476 FrameTime: 0.095 ms
+[desktop] <default>: FPS: 12127 FrameTime: 0.082 ms
+[cube] <default>: FPS: 13143 FrameTime: 0.076 ms
+[clear] <default>: FPS: 10673 FrameTime: 0.094 ms
+=======================================================
+                                   vkmark Score: 12792
+=======================================================

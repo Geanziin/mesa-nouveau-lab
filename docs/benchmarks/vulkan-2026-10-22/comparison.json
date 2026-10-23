@@ -1,0 +1,48 @@
+{
+  "median_scores": {
+    "nvgd": 14076,
+    "nvidia": 12925
+  },
+  "nvgd_over_nvidia_ratio": 1.0890522243713734,
+  "nvgd_score_change_percent": 8.90522243713734,
+  "matching_benchmark_data_hashes": true,
+  "matching_command": true,
+  "per_scene_median_fps": {
+    "nvgd": {
+      "vertex device-local=true": 15547,
+      "vertex device-local=false": 15325,
+      "texture anisotropy=0": 12467,
+      "texture anisotropy=16": 12916,
+      "shading shading=gouraud": 12569,
+      "shading shading=blinn-phong-inf": 13122,
+      "shading shading=phong": 12280,
+      "shading shading=cel": 13241,
+      "effect2d kernel=edge": 16250,
+      "effect2d kernel=blur": 9182,
+      "desktop <default>": 9529,
+      "cube <default>": 19285,
+      "clear <default>": 18690
+    },
+    "nvidia": {
+      "vertex device-local=true": 13698,
+      "vertex device-local=false": 5317,
+      "texture anisotropy=0": 14049,
+      "texture anisotropy=16": 14408,
+      "shading shading=gouraud": 14650,
+      "shading shading=blinn-phong-inf": 14832,
+      "shading shading=phong": 14852,
+      "shading shading=cel": 14757,
+      "effect2d kernel=edge": 14886,
+      "effect2d kernel=blur": 10462,
+      "desktop <default>": 12127,
+      "cube <default>": 14110,
+      "clear <default>": 10673
+    }
+  },
+  "limitations": [
+    "Different kernels: nvgd 7.3.0-3-cachyos, NVIDIA 6.18.55-2-cachyos-lts.",
+    "Normal desktop/background load differs; not an isolated driver-only experiment.",
+    "Stock vkmark semaphore-reuse validation VUIDs observed in diagnostics on both drivers.",
+    "Scores and reciprocal FPS are not input latency measurements."
+  ]
+}

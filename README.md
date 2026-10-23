@@ -24,13 +24,16 @@ Same machine and GNOME/Wayland desktop. The OpenGL rows below are the existing
 | `glmark2 --off-screen` (driver only, no presentation) | **35,236** | 31,803 | **1.11x** |
 | `glmark2-wayland` (windowed, native Wayland) | **9,902** | 2,653 | **3.73x** |
 | `glmark2` (windowed, X11/GLX via Xwayland) | **4,984** | 4,016 | **1.24x** |
-| `vkmark` (Vulkan, native Wayland, 800x600, immediate) | **14,076** | pending | pending |
+| `vkmark` (Vulkan, native Wayland, 800x600, immediate) | **14,076** | 12,925 | **1.09x** |
 
 The Vulkan result is the **median of three complete vkmark 2025.01 runs**:
-14,076 / 13,401 / 14,090, measured on 2026-10-22 (UTC-03). NVIDIA's Vulkan
-measurement will be added after rebooting into that driver; no ratio is claimed
-yet. Scores from vkmark and glmark2 are **not comparable across benchmarks**,
-and neither score measures input latency.
+14,076 / 13,401 / 14,090, measured on 2026-10-22 (UTC-03). NVIDIA 615.78.08
+scored 13,399 / 12,925 / 12,792 (median **12,925**) after reboot, with identical
+benchmark binary/data hashes and settings. NVK's aggregate score is **8.9% higher
+in this workload**, not in every scene: NVIDIA leads in 8 of the 13 scene medians.
+The kernel differs (nvgd: 7.3; NVIDIA: 6.18 LTS), and these are normal desktop
+sessions, not an isolated driver-only comparison. Scores from vkmark and glmark2
+are **not comparable across benchmarks**, and neither score measures input latency.
 [Vulkan settings, raw logs and the matching NVIDIA procedure](docs/benchmarks/vulkan-2026-10-22/README.md).
 
 Setup:
