@@ -140,9 +140,11 @@ python3 docs/benchmarks/run-vkmark.py nvidia /path/to/new-nvidia-results \
   without bound.
 - **Rendering fixes** for Chromium/Electron (Discord, Brave), GLX and
   GPU Screen Recorder.
-- **Native video**: H.264 and AV1 VA-API decode submit directly to NVDEC through
-  Gallium/DRM, without loading NVK or translating to Vulkan Video. H.264
-  encode uses NVENC directly, including separate Gallium input planes.
+- **Native video**: H.264, HEVC and AV1 VA-API decode submit directly to
+  NVDEC through Gallium/DRM, and VP9 through a full spec header parser with
+  backward probability adaptation, without loading NVK or translating to
+  Vulkan Video. H.264 encode uses NVENC directly, including separate Gallium
+  input planes.
   [Architecture, validated limits and codec roadmap](docs/native-video.md).
 
 ### Environment variables

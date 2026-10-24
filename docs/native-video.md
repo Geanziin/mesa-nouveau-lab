@@ -52,6 +52,43 @@ to use it directly.
   4:2:2/4:4:4, 12-bit, monochrome, large-scale tiles and profile 1. These
   fail the picture check loudly; there is no silent CPU or Vulkan fallback.
 
+### Stage 3: HEVC decode (Main / Main10)
+
+- **Decode:** HEVC Main 8-bit and Main10 10-bit 4:2:0 (NV12 and P010
+  surfaces), 48x16 through 4096x4096, one picture slot per surface with a
+  per-picture co-located-MV area. Validated bit-exact against the software
+  decoder on: Main with B-frames, Main10, 2x2 tile grids and 3840x2160.
+- The driver parses each slice header's `sw_hdr_skip_length` (the bits the
+  engine must skip because the frontend already applied them: output flag,
+  POC LSB, the whole short-term reference picture set and the long-term
+  part) with the spec's bit reader. Scaling lists are re-packed from
+  Gallium's raster order into the engine's transposed layout, including the
+  spec defaults when no matrix buffer arrives. Tiles are given in CTBs.
+- **Not yet covered, rejected explicitly:** range extensions (transform-skip
+  rotation, RDPCM, cross-component prediction, extended precision, high
+  precision offsets, chroma QP lists), monochrome, separate colour planes,
+  4:2:2/4:4:4 and 12-bit. No silent fallback.
+
+### Stage 4: VP9 decode (Profile0 / Profile2)
+
+- **Decode:** VP9 Profile0 8-bit and Profile2 10-bit 4:2:0, 8-bit through
+  8192x8192. Validated bit-exact against libvpx on: inter frames with GOP 24
+  and backward adaptation, 4x2 tile grids and Profile2 10-bit streams.
+- The driver owns the full VP9 header state machine per the spec (6.1-6.3):
+  the uncompressed and compressed headers are parsed with a local boolean
+  decoder, the four saved probability contexts are loaded/reset, and after
+  each frame the probabilities are backward-adapted (8.4) from the engine's
+  counter buffer before being saved again. The probability table is packed
+  into the NVDEC layout at runtime; segment maps and column MVs ping-pong.
+  Frames that take their size from a reference resolve it before the tile
+  syntax is parsed, since the frontend reports the frame size.
+- The engine reads reference samples up to the superblock-aligned frame size
+  without clamping at the frame edge, so after each frame the decoded
+  surface's right and bottom padding repeats the edge (8.5.2.4). Gallium
+  video surfaces are 64-aligned for this reason.
+- **Not yet covered, rejected explicitly:** `show_existing_frame` (the
+  frontend outputs those itself), 4:2:2/4:4:4, 12-bit and profiles 1/3.
+
 There is no claim of AMD feature parity or a codec performance improvement.
 Both decoders complete each frame synchronously, with a bounded wait
 and the firmware watchdog enabled. Unsupported bit depths, interlaced
@@ -77,12 +114,13 @@ python3 docs/benchmarks/check-native-video.py /path/to/new-results \
   --driver-dir /tmp/opencode/nvgd-native-video-only/src/gallium/targets/dri
 ```
 
-The hardware check needs FFmpeg/libx264/libaom/libdav1d, ffprobe, vainfo and
-strace. It does not install drivers. It forces hardware output followed by
-`hwdownload`, compares every decoded frame byte-for-byte to CPU references
-(200 H.264 frames plus 168 AV1 frames), and checks 72 encoded frames for
-valid H.264, expected dimensions/count and direct Gallium-plane submission.
-Encode checks are not visual-quality benchmarks.
+The hardware check needs FFmpeg/libx264/libaom/libdav1d/libx265/libvpx,
+ffprobe, vainfo and strace. It does not install drivers. It forces hardware
+output followed by `hwdownload`, compares every decoded frame byte-for-byte
+to CPU references (620 frames: 200 H.264, 168 AV1, 120 HEVC and 132 VP9),
+and checks 72 encoded frames for valid H.264, expected dimensions/count and
+direct Gallium-plane submission. Encode checks are not visual-quality
+benchmarks.
 Both Vulkan ICD variables deliberately point to a nonexistent file. The trace
 must show DRM pushbuffer submissions without opening `libvulkan_nouveau.so`.
 The report records binary, input, decoded-frame and relevant source hashes.
@@ -94,8 +132,9 @@ Recorded on 2026-10-23, H.264 stage: [report and hashes](benchmarks/native-video
 Recorded on 2026-10-23, AV1 stage: [report and hashes](benchmarks/native-video-av1-2026-10-23/report.json),
 [10-bit decode log](benchmarks/native-video-av1-2026-10-23/av1-main10-vaapi.log),
 [altref decode log](benchmarks/native-video-av1-2026-10-23/av1-altref-vaapi.log).
-All eight H.264 decode, five AV1 decode and three encode cases passed using
-the Vulkan-free build.
+Recorded on 2026-10-24, HEVC and VP9 stages: [report and hashes](benchmarks/native-video-codecs-2026-10-24/report.json).
+All eight H.264 decode, five AV1 decode, four HEVC decode, three VP9 decode
+and three encode cases passed using the Vulkan-free build.
 
 The C parameter tests exercise raster scaling matrices, stable colocated-MV
 indices, DPB markings, slice offsets, input bounds and unsupported-picture
@@ -105,15 +144,12 @@ independent MIT-licensed NVDEC layout reference at build-test time.
 The existing NV12 upload/bitstream-growth checks cover 144
 edge/pitch combinations and also pass with both sanitizers.
 
-## Next codecs, in priority order
+## Next, in priority order
 
-1. **HEVC Main/Main10 decode:** video/streaming content, including P010 and
-   10-bit references. Needs HEVC-specific firmware parameters, reference
-   lists, scaling/tile/filter buffers and frame validation.
-2. **VP9 Profile 0/2 decode:** browser/web-video workloads. Needs probability
-   context, segmentation and reference-state handling, including 10-bit tests.
-3. **AV1 film grain and remaining tools:** the FGS buffer and a separate
+1. **AV1 film grain and remaining tools:** the FGS buffer and a separate
    display surface, covering `apply_grain` streams end to end.
+2. **HEVC range extensions / SCC coverage** and long-term references.
+3. **VP9 12-bit (profile 2)** if a VA surface format for it is agreed.
 
 These are implementation stages, **not advertised capabilities**. Each must
 pass native hardware output checks before enabling its VA-API profiles.

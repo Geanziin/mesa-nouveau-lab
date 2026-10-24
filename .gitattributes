@@ -9,3 +9,4 @@ docs/relnotes/new_features.txt merge=union
 # Preserve raw FFmpeg evidence, including its trailing progress-line spaces.
 docs/benchmarks/native-video-2026-10-23/*.log -whitespace
 docs/benchmarks/native-video-av1-2026-10-23/*.log -whitespace
+docs/benchmarks/native-video-codecs-2026-10-24/*.log -whitespace

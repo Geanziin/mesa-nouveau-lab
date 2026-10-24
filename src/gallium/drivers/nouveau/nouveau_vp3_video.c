@@ -524,9 +524,19 @@ nouveau_vp3_screen_video_supported(struct pipe_screen *screen,
                                    enum pipe_video_profile profile,
                                    enum pipe_video_entrypoint entrypoint)
 {
-   if (profile == PIPE_VIDEO_PROFILE_AV1_MAIN &&
-       nouveau_nvdec_get_param(nouveau_screen(screen), profile, entrypoint, PIPE_VIDEO_CAP_SUPPORTED))
+   bool native = (profile == PIPE_VIDEO_PROFILE_AV1_MAIN ||
+                  profile == PIPE_VIDEO_PROFILE_HEVC_MAIN ||
+                  profile == PIPE_VIDEO_PROFILE_HEVC_MAIN_10 ||
+                  profile == PIPE_VIDEO_PROFILE_VP9_PROFILE0 ||
+                  profile == PIPE_VIDEO_PROFILE_VP9_PROFILE2) &&
+                 nouveau_nvdec_get_param(nouveau_screen(screen), profile, entrypoint,
+                                         PIPE_VIDEO_CAP_SUPPORTED);
+   if (native) {
+      if (profile == PIPE_VIDEO_PROFILE_HEVC_MAIN_10 ||
+          profile == PIPE_VIDEO_PROFILE_VP9_PROFILE2)
+         return format == PIPE_FORMAT_P010;
       return format == PIPE_FORMAT_NV12 || format == PIPE_FORMAT_P010;
+   }
    if (profile != PIPE_VIDEO_PROFILE_UNKNOWN)
       return format == PIPE_FORMAT_NV12;
 
